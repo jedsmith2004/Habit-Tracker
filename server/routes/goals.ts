@@ -93,8 +93,8 @@ router.post('/:id/add', requireAuth, async (req: AuthRequest, res) => {
 
     // Log it
     await sql`
-      INSERT INTO activity_logs (user_id, type, description)
-      VALUES (${req.uid!}, 'goal', ${`Added ${amount} ${goal.unit} to ${goal.title}`})
+      INSERT INTO activity_logs (user_id, type, description, reversible, related_id)
+      VALUES (${req.uid!}, 'goal', ${`Added ${amount} ${goal.unit} to ${goal.title}`}, TRUE, ${goalId})
     `;
 
     res.json({ ...goal, target: Number(goal.target), current: Number(goal.current) });

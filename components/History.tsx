@@ -1,17 +1,15 @@
 import React, { useState } from 'react';
 import { ActivityLog } from '../types';
-import { Clock, RotateCcw, Edit2, Check, X, Trash2 } from 'lucide-react';
+import { Clock, RotateCcw, Edit2, Check, X } from 'lucide-react';
 
 interface HistoryProps {
   logs: ActivityLog[];
   onReverseLog?: (logId: string) => void;
-  onDeleteLog?: (logId: string) => void;
   onEditLog?: (logId: string, newDescription: string, newAmount?: number) => void;
 }
 
-const History: React.FC<HistoryProps> = ({ logs, onReverseLog, onDeleteLog, onEditLog }) => {
+const History: React.FC<HistoryProps> = ({ logs, onReverseLog, onEditLog }) => {
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editText, setEditText] = useState('');
   const [editAmount, setEditAmount] = useState<string>('');
   const [filterType, setFilterType] = useState<string>('all');
 
@@ -27,19 +25,15 @@ const History: React.FC<HistoryProps> = ({ logs, onReverseLog, onDeleteLog, onEd
 
   const startEdit = (log: ActivityLog) => {
     setEditingId(log.id);
-    setEditText(log.description);
-    // Extract number from description for goal logs e.g. "Added 100 reps to Push-ups"
-    if (log.type === 'goal') {
-      const match = log.description.match(/Added ([\d.]+)/);
-      setEditAmount(match ? match[1] : '');
-    } else {
-      setEditAmount('');
-    }
+    const match = log.description.match(/Added ([\d.]+)/);
+    setEditAmount(match ? match[1] : '');
   };
 
-  const confirmEdit = (logId: string) => {
-    const amount = editAmount ? parseFloat(editAmount) : undefined;
-    onEditLog?.(logId, editText, amount);
+  const confirmEdit = (log: ActivityLog) => {
+    const newAmount = parseFloat(editAmount);
+    if (isNaN(newAmount) || newAmount <= 0) return;
+    const newDescription = log.description.replace(/Added [\d.]+/, `Added ${newAmount}`);
+    onEditLog?.(log.id, newDescription, newAmount);
     setEditingId(null);
     setEditAmount('');
   };
@@ -66,10 +60,8 @@ const History: React.FC<HistoryProps> = ({ logs, onReverseLog, onDeleteLog, onEd
     }
   };
 
-  // Filter logs by type
   const filteredLogs = filterType === 'all' ? logs : logs.filter(l => l.type === filterType);
 
-  // Group logs by date
   const groupedLogs: Record<string, ActivityLog[]> = {};
   filteredLogs.forEach(log => {
     const dateKey = formatDate(log.timestamp);
@@ -79,6 +71,8 @@ const History: React.FC<HistoryProps> = ({ logs, onReverseLog, onDeleteLog, onEd
 
   const filterOptions = ['all', 'habit', 'goal', 'event', 'friend', 'system'];
 
+  const isGoalProgressLog = (log: ActivityLog) => log.type === 'goal' && /Added [\d.]+/.test(log.description);
+
   return (
     <div className="max-w-4xl mx-auto pb-20">
       <div className="mb-8">
@@ -87,7 +81,6 @@ const History: React.FC<HistoryProps> = ({ logs, onReverseLog, onDeleteLog, onEd
         <p className="text-textMuted mt-1">{logs.length} entries total</p>
       </div>
 
-      {/* Filter buttons */}
       <div className="flex gap-2 mb-6 flex-wrap">
         {filterOptions.map(f => (
           <button key={f} onClick={() => setFilterType(f)}
@@ -119,20 +112,15 @@ const History: React.FC<HistoryProps> = ({ logs, onReverseLog, onDeleteLog, onEd
                       <div className="flex-1 min-w-0">
                         {editingId === log.id ? (
                           <div className="space-y-2">
+                            <p className="text-sm text-textMuted">{log.description.replace(/Added [\d.]+/, 'Added ...')}</p>
                             <div className="flex items-center gap-2">
-                              <input type="text" value={editText} onChange={e => setEditText(e.target.value)}
-                                className="flex-1 bg-background border border-border rounded px-3 py-1 text-textMain text-sm focus:outline-none focus:border-primary" />
-                              <button onClick={() => confirmEdit(log.id)} className="p-1 text-primary hover:text-primaryHover"><Check size={16} /></button>
+                              <label className="text-xs text-textMuted">New amount:</label>
+                              <input type="number" step="any" value={editAmount} onChange={e => setEditAmount(e.target.value)}
+                                className="w-24 bg-background border border-border rounded px-2 py-1 text-textMain text-xs focus:outline-none focus:border-primary" autoFocus />
+                              <button onClick={() => confirmEdit(log)} className="p-1 text-primary hover:text-primaryHover"><Check size={16} /></button>
                               <button onClick={() => setEditingId(null)} className="p-1 text-textMuted hover:text-textMain"><X size={16} /></button>
                             </div>
-                            {log.type === 'goal' && (
-                              <div className="flex items-center gap-2">
-                                <label className="text-xs text-textMuted">New amount:</label>
-                                <input type="number" step="any" value={editAmount} onChange={e => setEditAmount(e.target.value)}
-                                  className="w-24 bg-background border border-border rounded px-2 py-1 text-textMain text-xs focus:outline-none focus:border-primary" />
-                                <span className="text-[10px] text-textMuted">This will adjust the goal's actual value</span>
-                              </div>
-                            )}
+                            <span className="text-[10px] text-textMuted">This will adjust the goal's actual value</span>
                           </div>
                         ) : (
                           <>
@@ -146,24 +134,28 @@ const History: React.FC<HistoryProps> = ({ logs, onReverseLog, onDeleteLog, onEd
                       </div>
                       <div className="flex items-center gap-2 mt-2 sm:mt-0">
                         <time className="text-sm text-textMuted">{formatTime(log.timestamp)}</time>
-                        {/* Action buttons — visible on hover */}
-                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          {onEditLog && !log.reversed && (
-                            <button onClick={() => startEdit(log)} className="p-1.5 rounded text-textMuted hover:text-textMain hover:bg-surface" title="Edit">
-                              <Edit2 size={14} />
-                            </button>
-                          )}
-                          {onReverseLog && log.reversible && !log.reversed && (
-                            <button onClick={() => onReverseLog(log.id)} className="p-1.5 rounded text-textMuted hover:text-yellow-400 hover:bg-surface" title="Reverse">
-                              <RotateCcw size={14} />
-                            </button>
-                          )}
-                          {onDeleteLog && (
-                            <button onClick={() => onDeleteLog(log.id)} className="p-1.5 rounded text-textMuted hover:text-danger hover:bg-surface" title="Delete">
-                              <Trash2 size={14} />
-                            </button>
-                          )}
-                        </div>
+                        {!log.reversed && editingId !== log.id && (
+                          <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            {/* Goal progress logs: edit amount */}
+                            {onEditLog && isGoalProgressLog(log) && (
+                              <button onClick={() => startEdit(log)} className="p-1.5 rounded text-textMuted hover:text-textMain hover:bg-surface" title="Edit amount">
+                                <Edit2 size={14} />
+                              </button>
+                            )}
+                            {/* Goal progress logs: revert */}
+                            {onReverseLog && log.reversible && isGoalProgressLog(log) && (
+                              <button onClick={() => onReverseLog(log.id)} className="p-1.5 rounded text-textMuted hover:text-yellow-400 hover:bg-surface" title="Revert">
+                                <RotateCcw size={14} />
+                              </button>
+                            )}
+                            {/* Habit logs: revert only */}
+                            {onReverseLog && log.type === 'habit' && log.reversible && (
+                              <button onClick={() => onReverseLog(log.id)} className="p-1.5 rounded text-textMuted hover:text-yellow-400 hover:bg-surface" title="Revert">
+                                <RotateCcw size={14} />
+                              </button>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>

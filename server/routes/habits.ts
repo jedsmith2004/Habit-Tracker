@@ -90,11 +90,12 @@ router.put('/:id/entries', requireAuth, async (req: AuthRequest, res) => {
     }
 
     // Log it
-    const [habit] = await sql`SELECT title FROM habits WHERE id = ${habitId}`;
-    if (habit && status) {
+    const [habit] = await sql`SELECT title, category FROM habits WHERE id = ${habitId}`;
+    if (habit && status === 'COMPLETED') {
+      const isNegative = false; // server doesn't track isNegative yet, client adds proper description
       await sql`
-        INSERT INTO activity_logs (user_id, type, description)
-        VALUES (${req.uid!}, 'habit', ${`${status === 'COMPLETED' ? 'Completed' : 'Missed'} ${habit.title}`})
+        INSERT INTO activity_logs (user_id, type, description, reversible, related_id)
+        VALUES (${req.uid!}, 'habit', ${`Completed "${habit.title}" for ${date}`}, TRUE, ${habitId})
       `;
     }
 

@@ -38,6 +38,27 @@ export interface Friend {
   avatarUrl: string;
   status: string;
   lastActive: string;
+  goals?: NumericGoal[];
+  habits?: Habit[];
+}
+
+export interface FriendRequest {
+  requestId: string;
+  id: string;       // the user who sent the request
+  name: string;
+  email: string;
+  avatarUrl: string;
+  createdAt: string;
+}
+
+export interface Notification {
+  id: string;
+  message: string;
+  timestamp: Date;
+  read: boolean;
+  type?: 'goal' | 'habit' | 'friend' | 'event' | 'ping' | 'friend_request' | 'event_invite';
+  actionType?: 'friend_request' | 'event_invite';
+  actionData?: { friendId?: string; eventId?: string };
 }
 
 export interface FeedItem {

@@ -1,5 +1,5 @@
 import { getIdToken } from './firebase';
-import type { Habit, NumericGoal, ActivityLog } from '../types';
+import type { Habit, NumericGoal, ActivityLog, Friend, FriendRequest, FeedItem } from '../types';
 
 const API_BASE = '/api';
 
@@ -78,3 +78,47 @@ export const addGoalProgress = (goalId: string, amount: number) =>
 
 export const fetchLogs = (limit = 50) =>
   request<ActivityLog[]>(`/logs?limit=${limit}`);
+
+export const reverseLog = (logId: string) =>
+  request(`/logs/${logId}/reverse`, { method: 'PUT' });
+
+export const editLog = (logId: string, description: string, newAmount?: number) =>
+  request(`/logs/${logId}`, {
+    method: 'PUT',
+    body: JSON.stringify({ description, newAmount }),
+  });
+
+// --- Friends ---
+
+export const fetchFriends = () =>
+  request<Friend[]>('/friends');
+
+export const fetchFriendRequests = () =>
+  request<FriendRequest[]>('/friends/requests');
+
+export const searchUsers = (query: string) =>
+  request<{ id: string; name: string; email: string; avatarUrl: string }[]>(`/friends/search?q=${encodeURIComponent(query)}`);
+
+export const sendFriendRequest = (friendId: string) =>
+  request<{ success: boolean; name: string }>('/friends', {
+    method: 'POST',
+    body: JSON.stringify({ friendId }),
+  });
+
+export const acceptFriendRequest = (friendId: string) =>
+  request<Friend>('/friends/accept', {
+    method: 'POST',
+    body: JSON.stringify({ friendId }),
+  });
+
+export const rejectFriendRequest = (friendId: string) =>
+  request('/friends/reject', {
+    method: 'POST',
+    body: JSON.stringify({ friendId }),
+  });
+
+export const removeFriend = (friendId: string) =>
+  request(`/friends/${friendId}`, { method: 'DELETE' });
+
+export const fetchFeed = () =>
+  request<FeedItem[]>('/friends/feed');

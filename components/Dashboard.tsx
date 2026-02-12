@@ -1,13 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Check, X, Plus, ChevronLeft, ChevronRight, Bell, LayoutDashboard, TrendingDown, TrendingUp, Minus } from 'lucide-react';
-import { Habit, HabitStatus, NumericGoal } from '../types';
-
-interface Notification {
-  id: string;
-  message: string;
-  timestamp: Date;
-  read: boolean;
-}
+import { Habit, HabitStatus, NumericGoal, Notification } from '../types';
 
 interface DashboardProps {
   user: any;
@@ -17,6 +10,11 @@ interface DashboardProps {
   onUpdateGoal: (goalId: string, value: number) => void;
   onAddHabit: (habit: { title: string; category: Habit['category']; isNegative: boolean }) => void;
   onAddGoal: (goal: { title: string; category: string; target: number; unit: string; deadline: string }) => void;
+  externalNotifications?: Notification[];
+  onClearNotification?: (id: string) => void;
+  onAcceptFriendRequest?: (friendId: string) => void;
+  onRejectFriendRequest?: (friendId: string) => void;
+  onRSVPFromNotification?: (eventId: string, attending: boolean) => void;
 }
 
 // --- Add Habit Modal ---
@@ -135,7 +133,7 @@ const AddGoalModal: React.FC<{ onClose: () => void; onAdd: DashboardProps['onAdd
   );
 };
 
-const Dashboard: React.FC<DashboardProps> = ({ user, habits, goals, onToggleHabit, onUpdateGoal, onAddHabit, onAddGoal }) => {
+const Dashboard: React.FC<DashboardProps> = ({ user, habits, goals, onToggleHabit, onUpdateGoal, onAddHabit, onAddGoal, externalNotifications = [], onClearNotification, onAcceptFriendRequest, onRejectFriendRequest, onRSVPFromNotification }) => {
   const [weekOffset, setWeekOffset] = useState(0);
   const [showAddHabit, setShowAddHabit] = useState(false);
   const [showAddGoal, setShowAddGoal] = useState(false);
@@ -154,8 +152,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user, habits, goals, onToggleHabi
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  // Generate notifications from goal milestones
-  const notifications: Notification[] = [];
+  // Generate notifications from goal milestones + external
+  const notifications: Notification[] = [...externalNotifications];
   goals.forEach(g => {
     const progress = Math.round((g.current / g.target) * 100);
     if (progress >= 100) {
@@ -290,8 +288,43 @@ const Dashboard: React.FC<DashboardProps> = ({ user, habits, goals, onToggleHabi
                     <p className="text-textMuted text-sm p-4 text-center">All caught up! 🎉</p>
                   ) : notifications.map(n => (
                     <div key={n.id} className="px-4 py-3 border-b border-border/50 hover:bg-surfaceHighlight/50 transition-colors">
-                      <p className="text-sm text-textMain">{n.message}</p>
-                      <p className="text-[10px] text-textMuted mt-1">Just now</p>
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm text-textMain">{n.message}</p>
+                          <p className="text-[10px] text-textMuted mt-1">Just now</p>
+                        </div>
+                        {onClearNotification && n.type && !n.actionType && (
+                          <button onClick={() => onClearNotification(n.id)} className="text-textMuted hover:text-textMain shrink-0 mt-0.5">
+                            <X size={12} />
+                          </button>
+                        )}
+                      </div>
+                      {/* Friend request actions */}
+                      {n.actionType === 'friend_request' && n.actionData?.friendId && (
+                        <div className="flex gap-2 mt-2">
+                          <button onClick={() => onAcceptFriendRequest?.(n.actionData!.friendId!)}
+                            className="flex items-center gap-1 px-3 py-1.5 bg-primary hover:bg-primaryHover text-white rounded-lg text-xs font-medium transition-colors">
+                            <Check size={12} /> Accept
+                          </button>
+                          <button onClick={() => onRejectFriendRequest?.(n.actionData!.friendId!)}
+                            className="flex items-center gap-1 px-3 py-1.5 bg-surfaceHighlight hover:bg-border text-textMuted rounded-lg text-xs font-medium transition-colors border border-border">
+                            <X size={12} /> Decline
+                          </button>
+                        </div>
+                      )}
+                      {/* Event invite actions */}
+                      {n.actionType === 'event_invite' && n.actionData?.eventId && (
+                        <div className="flex gap-2 mt-2">
+                          <button onClick={() => onRSVPFromNotification?.(n.actionData!.eventId!, true)}
+                            className="flex items-center gap-1 px-3 py-1.5 bg-primary hover:bg-primaryHover text-white rounded-lg text-xs font-medium transition-colors">
+                            <Check size={12} /> Accept
+                          </button>
+                          <button onClick={() => onRSVPFromNotification?.(n.actionData!.eventId!, false)}
+                            className="flex items-center gap-1 px-3 py-1.5 bg-surfaceHighlight hover:bg-border text-textMuted rounded-lg text-xs font-medium transition-colors border border-border">
+                            <X size={12} /> Decline
+                          </button>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
