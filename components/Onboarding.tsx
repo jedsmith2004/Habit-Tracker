@@ -58,8 +58,8 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
 
   const handleFinish = () => {
     const goals: NumericGoal[] = [
-      ...selectedGoals.map((idx, i) => ({
-        id: `g-onb-${i}`,
+      ...selectedGoals.map((idx) => ({
+        id: crypto.randomUUID(),
         title: SUGGESTED_GOALS[idx].title,
         category: SUGGESTED_GOALS[idx].category,
         target: goalTargets[idx] || SUGGESTED_GOALS[idx].target,
@@ -68,8 +68,8 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
         deadline: new Date(new Date().getFullYear(), 11, 31).toISOString().split('T')[0],
         history: [],
       })),
-      ...customGoals.map((g, i) => ({
-        id: `g-cust-${i}`,
+      ...customGoals.map((g) => ({
+        id: crypto.randomUUID(),
         title: g.title,
         category: 'Custom',
         target: g.target,
@@ -81,15 +81,15 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
     ];
 
     const habits: Habit[] = [
-      ...selectedHabits.map((idx, i) => ({
-        id: `h-onb-${i}`,
+      ...selectedHabits.map((idx) => ({
+        id: crypto.randomUUID(),
         title: SUGGESTED_HABITS[idx].title,
         category: SUGGESTED_HABITS[idx].category,
         isNegative: SUGGESTED_HABITS[idx].isNegative,
         history: {},
       })),
-      ...customHabits.map((h, i) => ({
-        id: `h-cust-${i}`,
+      ...customHabits.map((h) => ({
+        id: crypto.randomUUID(),
         title: h.title,
         category: 'Custom' as const,
         isNegative: h.isNegative,
