@@ -1,0 +1,7 @@
+{
+  "name": "HabitFlow",
+  "description": "A modern, AI-powered habit tracker and goal management application with social features and advanced analytics.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}
