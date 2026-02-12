@@ -1,3 +1,4 @@
+import type { VercelRequest, VercelResponse } from '@vercel/node';
 import express from 'express';
 import cors from 'cors';
 
@@ -11,7 +12,6 @@ import eventRoutes from '../server/routes/events';
 
 const app = express();
 
-// Allow requests from any origin in production (Vercel handles domain routing)
 app.use(cors());
 app.use(express.json());
 
@@ -30,14 +30,17 @@ app.get('/api/health', (_req, res) => {
 
 // Initialize DB on first cold start
 let dbInitialized = false;
-const originalHandler = app;
 
-const handler = async (req: any, res: any) => {
+export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!dbInitialized) {
-    await initDB();
-    dbInitialized = true;
+    try {
+      await initDB();
+      dbInitialized = true;
+    } catch (err) {
+      console.error('DB init failed:', err);
+      return res.status(500).json({ error: 'Database initialization failed', details: String(err) });
+    }
   }
-  return originalHandler(req, res);
-};
-
-export default handler;
+  // Forward to Express
+  return app(req as any, res as any);
+}

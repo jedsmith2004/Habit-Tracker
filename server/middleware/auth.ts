@@ -4,10 +4,7 @@ import admin from 'firebase-admin';
 // Initialize Firebase Admin SDK (uses application default credentials or service account)
 if (!admin.apps.length) {
   admin.initializeApp({
-    // If you need a service account, set GOOGLE_APPLICATION_CREDENTIALS env var
-    // pointing to your service account JSON file. Otherwise, this works with
-    // Firebase project defaults.
-    projectId: process.env.VITE_FIREBASE_PROJECT_ID,
+    projectId: process.env.FIREBASE_PROJECT_ID || process.env.VITE_FIREBASE_PROJECT_ID,
   });
 }
 
