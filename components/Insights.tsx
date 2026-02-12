@@ -29,21 +29,17 @@ const Insights: React.FC<InsightsProps> = ({ habits, goals }) => {
     fetchInsights();
   }, [habits, goals]);
 
-  // Build real chart data from goal history
+  // Build real chart data from goal history — NO mock data
   const buildGoalChartData = (goal: NumericGoal) => {
     if (!goal.history || goal.history.length === 0) {
-      // Generate mock monthly data based on current progress
-      const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-      const now = new Date();
-      const currentMonth = now.getMonth();
-      let cumulative = 0;
-      const perMonth = goal.current / Math.max(1, currentMonth + 1);
-      return months.slice(0, currentMonth + 1).map((name, i) => {
-        cumulative += perMonth * (0.7 + Math.random() * 0.6);
-        return { name, value: Math.round(Math.min(cumulative, goal.current)) };
-      });
+      // Show single point at current value if no history entries
+      if (goal.current > 0) {
+        const now = new Date();
+        return [{ name: now.toLocaleString('default', { month: 'short' }), value: goal.current }];
+      }
+      return [];
     }
-    // Aggregate history by month
+    // Aggregate history by month (cumulative)
     const byMonth: Record<string, number> = {};
     goal.history.forEach(e => {
       const m = e.date.slice(0, 7); // YYYY-MM
@@ -53,7 +49,7 @@ const Insights: React.FC<InsightsProps> = ({ habits, goals }) => {
     return Object.entries(byMonth).sort().map(([month, amount]) => {
       cumulative += amount;
       const d = new Date(month + '-01');
-      return { name: d.toLocaleString('default', { month: 'short' }), value: cumulative };
+      return { name: d.toLocaleString('default', { month: 'short' }), value: parseFloat(cumulative.toFixed(2)) };
     });
   };
 
@@ -171,10 +167,10 @@ const Insights: React.FC<InsightsProps> = ({ habits, goals }) => {
                     <span className="px-2 py-1 bg-primary text-white text-[10px] font-bold uppercase rounded">{goal.category}</span>
                     <h3 className="text-2xl font-bold text-textMain mt-2">{goal.title}</h3>
                     <p className="text-textMuted text-sm mt-1">
-                      {goal.current.toLocaleString()} / {goal.target.toLocaleString()} {goal.unit}
+                      {goal.current.toLocaleString(undefined, { maximumFractionDigits: 2 })} / {goal.target.toLocaleString(undefined, { maximumFractionDigits: 2 })} {goal.unit}
                     </p>
                     <p className="text-xs text-textMuted mt-0.5">
-                      Remaining: {Math.max(0, goal.target - goal.current).toLocaleString()}
+                      Remaining: {Math.max(0, goal.target - goal.current).toLocaleString(undefined, { maximumFractionDigits: 2 })}
                     </p>
                   </div>
                   {/* % circle */}
@@ -194,6 +190,7 @@ const Insights: React.FC<InsightsProps> = ({ habits, goals }) => {
 
                 {/* Right: chart */}
                 <div className="flex-1 min-w-0">
+                  {chartData.length > 0 ? (
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={chartData}>
                       <defs>
@@ -205,16 +202,21 @@ const Insights: React.FC<InsightsProps> = ({ habits, goals }) => {
                       <CartesianGrid strokeDasharray="3 3" stroke="#30363d" vertical={false} />
                       <XAxis dataKey="name" stroke="#8b949e" tick={{ fontSize: 12 }} tickLine={false} axisLine={false} />
                       <YAxis stroke="#8b949e" tick={{ fontSize: 10 }} tickLine={false} axisLine={false}
-                        domain={[0, goal.target]} tickFormatter={(v: number) => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : `${v}`} />
+                        domain={[0, goal.target]} tickFormatter={(v: number) => v >= 1000 ? `${(v / 1000).toFixed(1)}k` : `${v}`} />
                       <Tooltip
                         contentStyle={{ backgroundColor: '#161b22', borderColor: '#30363d', borderRadius: '8px' }}
                         itemStyle={{ color: '#f0f6fc' }}
-                        formatter={(value: number) => [value.toLocaleString() + ' ' + goal.unit, goal.title]}
+                        formatter={(value: number) => [value.toLocaleString(undefined, { maximumFractionDigits: 2 }) + ' ' + goal.unit, goal.title]}
                       />
                       <Line type="monotone" dataKey="value" stroke="#2ea043" strokeWidth={3} dot={false}
                         activeDot={{ r: 6, fill: '#2ea043', stroke: '#fff', strokeWidth: 2 }} />
                     </LineChart>
                   </ResponsiveContainer>
+                  ) : (
+                    <div className="flex items-center justify-center h-full text-textMuted text-sm">
+                      Log progress on the Dashboard to see your chart
+                    </div>
+                  )}
                 </div>
               </div>
             );
@@ -233,17 +235,17 @@ const Insights: React.FC<InsightsProps> = ({ habits, goals }) => {
             </h3>
             <span className="text-xs text-textMuted">Past Year</span>
           </div>
-          <div className="overflow-x-auto">
-            <div className="inline-flex gap-[3px]" style={{ minWidth: 'fit-content' }}>
+          <div className="overflow-hidden">
+            <div className="flex gap-[2px]" style={{ width: '100%' }}>
               {weeks.map((week, wIdx) => (
-                <div key={wIdx} className="flex flex-col gap-[3px]">
+                <div key={wIdx} className="flex flex-col gap-[2px]" style={{ flex: '1 1 0' }}>
                   {Array.from({ length: 7 }).map((_, dayIdx) => {
                     const cell = week[dayIdx];
                     return (
                       <div key={dayIdx}
                         className="rounded-sm"
                         style={{
-                          width: '13px', height: '13px',
+                          width: '100%', aspectRatio: '1', maxHeight: '11px',
                           backgroundColor: cell ? getColor(cell.count) : 'transparent',
                         }}
                         title={cell && cell.count >= 0 ? `${cell.date}: ${cell.count} habits` : ''}

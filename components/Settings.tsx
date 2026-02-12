@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Moon, Bell, Shield, Smartphone } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Moon, Bell, Shield } from 'lucide-react';
 
 interface SettingsState {
   darkMode: boolean;
@@ -16,15 +16,66 @@ const Toggle: React.FC<{ enabled: boolean; onChange: () => void }> = ({ enabled,
   </button>
 );
 
+// Light theme CSS variables
+const LIGHT_THEME: Record<string, string> = {
+  '--color-background': '#f6f8fa',
+  '--color-surface': '#ffffff',
+  '--color-surfaceHighlight': '#f0f0f0',
+  '--color-border': '#d0d7de',
+  '--color-textMain': '#24292f',
+  '--color-textMuted': '#656d76',
+  '--color-primary': '#2ea043',
+  '--color-primaryHover': '#238636',
+  '--color-danger': '#cf222e',
+};
+
+// Dark theme CSS variables
+const DARK_THEME: Record<string, string> = {
+  '--color-background': '#0d1117',
+  '--color-surface': '#161b22',
+  '--color-surfaceHighlight': '#21262d',
+  '--color-border': '#30363d',
+  '--color-textMain': '#f0f6fc',
+  '--color-textMuted': '#8b949e',
+  '--color-primary': '#2ea043',
+  '--color-primaryHover': '#238636',
+  '--color-danger': '#da3633',
+};
+
 const Settings: React.FC = () => {
-  const [settings, setSettings] = useState<SettingsState>({
-    darkMode: true,
-    compactView: false,
-    dailyReminders: true,
-    goalAlerts: true,
-    friendPings: true,
-    weeklyReport: false,
+  const [settings, setSettings] = useState<SettingsState>(() => {
+    const saved = localStorage.getItem('habitflow-settings');
+    if (saved) return JSON.parse(saved);
+    return {
+      darkMode: true,
+      compactView: false,
+      dailyReminders: true,
+      goalAlerts: true,
+      friendPings: true,
+      weeklyReport: false,
+    };
   });
+
+  // Persist settings
+  useEffect(() => {
+    localStorage.setItem('habitflow-settings', JSON.stringify(settings));
+  }, [settings]);
+
+  // Apply dark/light mode
+  useEffect(() => {
+    const theme = settings.darkMode ? DARK_THEME : LIGHT_THEME;
+    const root = document.documentElement;
+    Object.entries(theme).forEach(([key, value]) => {
+      root.style.setProperty(key, value);
+    });
+    // Also set a data attribute for potential CSS usage
+    root.setAttribute('data-theme', settings.darkMode ? 'dark' : 'light');
+  }, [settings.darkMode]);
+
+  // Apply compact view
+  useEffect(() => {
+    document.documentElement.setAttribute('data-compact', settings.compactView ? 'true' : 'false');
+  }, [settings.compactView]);
 
   const toggle = (key: keyof SettingsState) => {
     setSettings(prev => ({ ...prev, [key]: !prev[key] }));

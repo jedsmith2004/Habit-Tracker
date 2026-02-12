@@ -65,7 +65,7 @@ export interface HabitEvent {
 
 export interface ActivityLog {
   id: string;
-  type: 'habit' | 'goal' | 'system' | 'event';
+  type: 'habit' | 'goal' | 'system' | 'event' | 'friend';
   description: string;
   timestamp: Date;
   reversible?: boolean;

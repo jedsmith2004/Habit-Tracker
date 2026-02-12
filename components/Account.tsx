@@ -10,16 +10,24 @@ interface AccountProps {
   onUpdateUser: (u: User) => void;
   onDeleteHabit?: (habitId: string) => void;
   onDeleteGoal?: (goalId: string) => void;
+  onEditHabit?: (habitId: string, updates: { title?: string }) => void;
+  onEditGoal?: (goalId: string, updates: { title?: string; target?: number; deadline?: string }) => void;
   onClose: () => void;
 }
 
-const Account: React.FC<AccountProps> = ({ user, habits, goals, onUpdateUser, onDeleteHabit, onDeleteGoal, onClose }) => {
+const Account: React.FC<AccountProps> = ({ user, habits, goals, onUpdateUser, onDeleteHabit, onDeleteGoal, onEditHabit, onEditGoal, onClose }) => {
   const [prompt, setPrompt] = useState('');
   const [generating, setGenerating] = useState(false);
   const [tempAvatar, setTempAvatar] = useState<string | null>(null);
   const [editingName, setEditingName] = useState(false);
   const [nameInput, setNameInput] = useState(user.name);
   const [tab, setTab] = useState<'profile' | 'habits' | 'goals'>('profile');
+  const [editingHabitId, setEditingHabitId] = useState<string | null>(null);
+  const [editHabitTitle, setEditHabitTitle] = useState('');
+  const [editingGoalId, setEditingGoalId] = useState<string | null>(null);
+  const [editGoalTitle, setEditGoalTitle] = useState('');
+  const [editGoalTarget, setEditGoalTarget] = useState('');
+  const [editGoalDeadline, setEditGoalDeadline] = useState('');
 
   const handleGenerateAvatar = async () => {
     if (!prompt) return;
@@ -144,15 +152,35 @@ const Account: React.FC<AccountProps> = ({ user, habits, goals, onUpdateUser, on
             <p className="text-textMuted text-center py-8">No habits yet.</p>
           ) : habits.map(h => (
             <div key={h.id} className="bg-surface border border-border rounded-lg p-4 flex items-center justify-between group">
-              <div>
-                <h4 className="font-semibold text-textMain">{h.title}</h4>
-                <div className="flex items-center gap-2 mt-1">
-                  <span className="text-[10px] uppercase bg-surfaceHighlight px-2 py-0.5 rounded text-textMuted">{h.category}</span>
-                  {h.isNegative && <span className="text-[10px] uppercase bg-danger/10 px-2 py-0.5 rounded text-danger">Negative</span>}
-                  <span className="text-xs text-textMuted">{habitCompletions(h)} completions</span>
-                </div>
+              <div className="flex-1 min-w-0">
+                {editingHabitId === h.id ? (
+                  <div className="flex items-center gap-2">
+                    <input type="text" value={editHabitTitle} onChange={e => setEditHabitTitle(e.target.value)}
+                      className="flex-1 bg-background border border-border rounded-lg px-3 py-1.5 text-textMain text-sm focus:outline-none focus:border-primary" />
+                    <button onClick={() => {
+                      if (editHabitTitle.trim()) onEditHabit?.(h.id, { title: editHabitTitle.trim() });
+                      setEditingHabitId(null);
+                    }} className="p-1.5 text-primary hover:text-primaryHover"><Check size={16} /></button>
+                    <button onClick={() => setEditingHabitId(null)} className="p-1.5 text-textMuted hover:text-textMain"><X size={16} /></button>
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex items-center gap-2">
+                      <h4 className="font-semibold text-textMain">{h.title}</h4>
+                      {onEditHabit && (
+                        <button onClick={() => { setEditingHabitId(h.id); setEditHabitTitle(h.title); }}
+                          className="p-1 text-textMuted hover:text-textMain opacity-0 group-hover:opacity-100 transition-all"><Edit2 size={14} /></button>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-[10px] uppercase bg-surfaceHighlight px-2 py-0.5 rounded text-textMuted">{h.category}</span>
+                      {h.isNegative && <span className="text-[10px] uppercase bg-danger/10 px-2 py-0.5 rounded text-danger">Negative</span>}
+                      <span className="text-xs text-textMuted">{habitCompletions(h)} completions</span>
+                    </div>
+                  </>
+                )}
               </div>
-              {onDeleteHabit && (
+              {onDeleteHabit && editingHabitId !== h.id && (
                 <button onClick={() => onDeleteHabit(h.id)}
                   className="p-2 text-textMuted hover:text-danger opacity-0 group-hover:opacity-100 transition-all" title="Delete habit">
                   <Trash2 size={16} />
@@ -170,29 +198,76 @@ const Account: React.FC<AccountProps> = ({ user, habits, goals, onUpdateUser, on
             <p className="text-textMuted text-center py-8">No goals yet.</p>
           ) : goals.map(g => {
             const progress = Math.min(100, Math.round((g.current / g.target) * 100));
+            const isEditing = editingGoalId === g.id;
             return (
               <div key={g.id} className="bg-surface border border-border rounded-lg p-4 group">
                 <div className="flex items-center justify-between mb-2">
-                  <div>
-                    <h4 className="font-semibold text-textMain">{g.title}</h4>
-                    <span className="text-[10px] uppercase bg-surfaceHighlight px-2 py-0.5 rounded text-textMuted">{g.category}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-bold text-textMain">{progress}%</span>
-                    {onDeleteGoal && (
-                      <button onClick={() => onDeleteGoal(g.id)}
-                        className="p-2 text-textMuted hover:text-danger opacity-0 group-hover:opacity-100 transition-all" title="Delete goal">
-                        <Trash2 size={16} />
-                      </button>
+                  <div className="flex-1 min-w-0">
+                    {isEditing ? (
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <input type="text" value={editGoalTitle} onChange={e => setEditGoalTitle(e.target.value)} placeholder="Goal name"
+                            className="flex-1 bg-background border border-border rounded-lg px-3 py-1.5 text-textMain text-sm focus:outline-none focus:border-primary" />
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <label className="text-xs text-textMuted">Target:</label>
+                          <input type="number" step="any" value={editGoalTarget} onChange={e => setEditGoalTarget(e.target.value)}
+                            className="w-24 bg-background border border-border rounded px-2 py-1 text-textMain text-xs focus:outline-none focus:border-primary" />
+                          <label className="text-xs text-textMuted">Deadline:</label>
+                          <input type="date" value={editGoalDeadline} onChange={e => setEditGoalDeadline(e.target.value)}
+                            className="bg-background border border-border rounded px-2 py-1 text-textMain text-xs focus:outline-none focus:border-primary" />
+                        </div>
+                        <div className="flex gap-2">
+                          <button onClick={() => {
+                            onEditGoal?.(g.id, {
+                              title: editGoalTitle.trim() || undefined,
+                              target: editGoalTarget ? parseFloat(editGoalTarget) : undefined,
+                              deadline: editGoalDeadline || undefined,
+                            });
+                            setEditingGoalId(null);
+                          }} className="px-3 py-1 text-xs bg-primary text-white rounded-lg hover:bg-primaryHover">Save</button>
+                          <button onClick={() => setEditingGoalId(null)} className="px-3 py-1 text-xs text-textMuted hover:text-textMain">Cancel</button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <div>
+                          <h4 className="font-semibold text-textMain">{g.title}</h4>
+                          <span className="text-[10px] uppercase bg-surfaceHighlight px-2 py-0.5 rounded text-textMuted">{g.category}</span>
+                        </div>
+                        {onEditGoal && (
+                          <button onClick={() => {
+                            setEditingGoalId(g.id);
+                            setEditGoalTitle(g.title);
+                            setEditGoalTarget(String(g.target));
+                            setEditGoalDeadline(g.deadline);
+                          }} className="p-1 text-textMuted hover:text-textMain opacity-0 group-hover:opacity-100 transition-all"><Edit2 size={14} /></button>
+                        )}
+                      </div>
                     )}
                   </div>
+                  {!isEditing && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-bold text-textMain">{progress}%</span>
+                      {onDeleteGoal && (
+                        <button onClick={() => onDeleteGoal(g.id)}
+                          className="p-2 text-textMuted hover:text-danger opacity-0 group-hover:opacity-100 transition-all" title="Delete goal">
+                          <Trash2 size={16} />
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
-                <div className="h-2 bg-surfaceHighlight rounded-full overflow-hidden">
-                  <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${progress}%` }} />
-                </div>
-                <p className="text-xs text-textMuted mt-1">
-                  {g.current.toLocaleString()} / {g.target.toLocaleString()} {g.unit} — Deadline: {g.deadline}
-                </p>
+                {!isEditing && (
+                  <>
+                    <div className="h-2 bg-surfaceHighlight rounded-full overflow-hidden">
+                      <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${progress}%` }} />
+                    </div>
+                    <p className="text-xs text-textMuted mt-1">
+                      {g.current.toLocaleString(undefined, { maximumFractionDigits: 2 })} / {g.target.toLocaleString(undefined, { maximumFractionDigits: 2 })} {g.unit} — Deadline: {g.deadline}
+                    </p>
+                  </>
+                )}
               </div>
             );
           })}

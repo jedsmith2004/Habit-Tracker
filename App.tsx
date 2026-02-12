@@ -135,6 +135,19 @@ const App: React.FC = () => {
       return { ...h, history: newHistory };
     }));
 
+    // Add log entry for habit toggle
+    if (nextStatus === HabitStatus.COMPLETED) {
+      const newLog: ActivityLog = {
+        id: `log-${Date.now()}`,
+        type: 'habit',
+        description: `${habit.isNegative ? 'Logged' : 'Completed'} "${habit.title}" for ${date}`,
+        timestamp: new Date(),
+        reversible: false,
+        relatedId: habitId,
+      };
+      setLogs(prev => [newLog, ...prev]);
+    }
+
     try {
       await api.toggleHabitEntry(habitId, date, nextStatus);
     } catch (err) {
@@ -144,9 +157,29 @@ const App: React.FC = () => {
   };
 
   const handleUpdateGoal = async (goalId: string, valueToAdd: number) => {
+    const today = new Date().toISOString().split('T')[0];
     setGoals(prev => prev.map(g =>
-      g.id === goalId ? { ...g, current: g.current + valueToAdd } : g
+      g.id === goalId ? {
+        ...g,
+        current: g.current + valueToAdd,
+        history: [...(g.history || []), { date: today, amount: valueToAdd }],
+      } : g
     ));
+
+    // Add log entry instantly
+    const goal = goals.find(g => g.id === goalId);
+    if (goal) {
+      const newLog: ActivityLog = {
+        id: `log-${Date.now()}`,
+        type: 'goal',
+        description: `Added ${valueToAdd} ${goal.unit} to ${goal.title}`,
+        timestamp: new Date(),
+        reversible: true,
+        reversed: false,
+        relatedId: goalId,
+      };
+      setLogs(prev => [newLog, ...prev]);
+    }
 
     try {
       await api.addGoalProgress(goalId, valueToAdd);
@@ -166,6 +199,10 @@ const App: React.FC = () => {
     try {
       const created = await api.createHabit(newHabit);
       setHabits(prev => [...prev, created]);
+      setLogs(prev => [
+        { id: `log-${Date.now()}`, type: 'habit', description: `Created habit "${habit.title}"`, timestamp: new Date() },
+        ...prev,
+      ]);
     } catch (err) {
       console.error('Failed to create habit:', err);
     }
@@ -183,13 +220,22 @@ const App: React.FC = () => {
     try {
       const created = await api.createGoal(newGoal);
       setGoals(prev => [...prev, created]);
+      setLogs(prev => [
+        { id: `log-${Date.now()}`, type: 'goal', description: `Created goal "${goal.title}" — target: ${goal.target} ${goal.unit}`, timestamp: new Date() },
+        ...prev,
+      ]);
     } catch (err) {
       console.error('Failed to create goal:', err);
     }
   };
 
   const handleDeleteHabit = async (habitId: string) => {
+    const habit = habits.find(h => h.id === habitId);
     setHabits(prev => prev.filter(h => h.id !== habitId));
+    setLogs(prev => [
+      { id: `log-${Date.now()}`, type: 'habit', description: `Deleted habit "${habit?.title}"`, timestamp: new Date() },
+      ...prev,
+    ]);
     try {
       await api.deleteHabit(habitId);
     } catch (err) {
@@ -200,12 +246,78 @@ const App: React.FC = () => {
 
   const handleDeleteGoal = async (goalId: string) => {
     setGoals(prev => prev.filter(g => g.id !== goalId));
+    setLogs(prev => [
+      { id: `log-${Date.now()}`, type: 'system', description: `Deleted a goal`, timestamp: new Date() },
+      ...prev,
+    ]);
     try {
       await api.deleteGoal(goalId);
     } catch (err) {
       console.error('Failed to delete goal:', err);
       loadData();
     }
+  };
+
+  // Log handlers
+  const handleReverseLog = (logId: string) => {
+    const log = logs.find(l => l.id === logId);
+    if (!log || !log.reversible || log.reversed) return;
+    setLogs(prev => prev.map(l => l.id === logId ? { ...l, reversed: true } : l));
+    // If it's a goal log, also reverse the goal value
+    if (log.type === 'goal' && log.relatedId) {
+      const match = log.description.match(/Added ([\d.]+)/);
+      if (match) {
+        const amount = parseFloat(match[1]);
+        setGoals(prev => prev.map(g =>
+          g.id === log.relatedId ? { ...g, current: Math.max(0, g.current - amount) } : g
+        ));
+      }
+    }
+  };
+
+  const handleDeleteLog = (logId: string) => {
+    setLogs(prev => prev.filter(l => l.id !== logId));
+  };
+
+  const handleEditLog = (logId: string, newDescription: string, newAmount?: number) => {
+    const log = logs.find(l => l.id === logId);
+    if (!log) return;
+
+    // If editing a goal log with a new amount, adjust the goal value
+    if (log.type === 'goal' && log.relatedId && newAmount !== undefined) {
+      const oldMatch = log.description.match(/Added ([\d.]+)/);
+      if (oldMatch) {
+        const oldAmount = parseFloat(oldMatch[1]);
+        const diff = newAmount - oldAmount;
+        setGoals(prev => prev.map(g =>
+          g.id === log.relatedId ? { ...g, current: Math.max(0, g.current + diff) } : g
+        ));
+      }
+    }
+
+    setLogs(prev => prev.map(l => l.id === logId ? { ...l, description: newDescription } : l));
+  };
+
+  // Edit handlers for Account page
+  const handleEditHabit = (habitId: string, updates: { title?: string }) => {
+    setHabits(prev => prev.map(h =>
+      h.id === habitId ? { ...h, ...updates } : h
+    ));
+    setLogs(prev => [
+      { id: `log-${Date.now()}`, type: 'habit', description: `Updated habit "${updates.title}"`, timestamp: new Date() },
+      ...prev,
+    ]);
+  };
+
+  const handleEditGoal = (goalId: string, updates: { title?: string; target?: number; deadline?: string }) => {
+    setGoals(prev => prev.map(g =>
+      g.id === goalId ? { ...g, ...updates } : g
+    ));
+    const goal = goals.find(g => g.id === goalId);
+    setLogs(prev => [
+      { id: `log-${Date.now()}`, type: 'goal', description: `Updated goal "${updates.title || goal?.title}"`, timestamp: new Date() },
+      ...prev,
+    ]);
   };
 
   const handleLogout = async () => {
@@ -255,7 +367,14 @@ const App: React.FC = () => {
         />
       )}
       {activeTab === 'friends' && <Friends />}
-      {activeTab === 'history' && <History logs={logs} />}
+      {activeTab === 'history' && (
+        <History
+          logs={logs}
+          onReverseLog={handleReverseLog}
+          onDeleteLog={handleDeleteLog}
+          onEditLog={handleEditLog}
+        />
+      )}
       {activeTab === 'settings' && <Settings />}
       {activeTab === 'account' && (
         <Account
@@ -265,6 +384,8 @@ const App: React.FC = () => {
           onUpdateUser={setUser}
           onDeleteHabit={handleDeleteHabit}
           onDeleteGoal={handleDeleteGoal}
+          onEditHabit={handleEditHabit}
+          onEditGoal={handleEditGoal}
           onClose={() => setActiveTab('dashboard')}
         />
       )}

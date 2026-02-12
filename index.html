@@ -10,15 +10,15 @@
         theme: {
           extend: {
             colors: {
-              background: '#0d1117',
-              surface: '#161b22',
-              surfaceHighlight: '#21262d',
-              primary: '#2ea043', // GitHub-ish green / HabitFlow green
-              primaryHover: '#3fb950',
-              danger: '#da3633',
-              textMain: '#f0f6fc',
-              textMuted: '#8b949e',
-              border: '#30363d',
+              background: 'var(--color-background, #0d1117)',
+              surface: 'var(--color-surface, #161b22)',
+              surfaceHighlight: 'var(--color-surfaceHighlight, #21262d)',
+              primary: 'var(--color-primary, #2ea043)',
+              primaryHover: 'var(--color-primaryHover, #238636)',
+              danger: 'var(--color-danger, #da3633)',
+              textMain: 'var(--color-textMain, #f0f6fc)',
+              textMuted: 'var(--color-textMuted, #8b949e)',
+              border: 'var(--color-border, #30363d)',
             },
             fontFamily: {
               sans: ['Inter', 'sans-serif'],
@@ -29,10 +29,22 @@
     </script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
+      :root {
+        --color-background: #0d1117;
+        --color-surface: #161b22;
+        --color-surfaceHighlight: #21262d;
+        --color-border: #30363d;
+        --color-textMain: #f0f6fc;
+        --color-textMuted: #8b949e;
+        --color-primary: #2ea043;
+        --color-primaryHover: #238636;
+        --color-danger: #da3633;
+      }
       body {
-        background-color: #0d1117;
-        color: #f0f6fc;
+        background-color: var(--color-background);
+        color: var(--color-textMain);
         font-family: 'Inter', sans-serif;
+        transition: background-color 0.3s, color 0.3s;
       }
       /* Custom scrollbar for dark theme */
       ::-webkit-scrollbar {

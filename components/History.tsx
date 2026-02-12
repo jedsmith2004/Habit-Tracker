@@ -6,12 +6,14 @@ interface HistoryProps {
   logs: ActivityLog[];
   onReverseLog?: (logId: string) => void;
   onDeleteLog?: (logId: string) => void;
-  onEditLog?: (logId: string, newDescription: string) => void;
+  onEditLog?: (logId: string, newDescription: string, newAmount?: number) => void;
 }
 
 const History: React.FC<HistoryProps> = ({ logs, onReverseLog, onDeleteLog, onEditLog }) => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editText, setEditText] = useState('');
+  const [editAmount, setEditAmount] = useState<string>('');
+  const [filterType, setFilterType] = useState<string>('all');
 
   const formatDate = (ts: Date | string) => {
     const d = typeof ts === 'string' ? new Date(ts) : ts;
@@ -26,11 +28,20 @@ const History: React.FC<HistoryProps> = ({ logs, onReverseLog, onDeleteLog, onEd
   const startEdit = (log: ActivityLog) => {
     setEditingId(log.id);
     setEditText(log.description);
+    // Extract number from description for goal logs e.g. "Added 100 reps to Push-ups"
+    if (log.type === 'goal') {
+      const match = log.description.match(/Added ([\d.]+)/);
+      setEditAmount(match ? match[1] : '');
+    } else {
+      setEditAmount('');
+    }
   };
 
   const confirmEdit = (logId: string) => {
-    onEditLog?.(logId, editText);
+    const amount = editAmount ? parseFloat(editAmount) : undefined;
+    onEditLog?.(logId, editText, amount);
     setEditingId(null);
+    setEditAmount('');
   };
 
   const typeColor = (type: string) => {
@@ -38,6 +49,8 @@ const History: React.FC<HistoryProps> = ({ logs, onReverseLog, onDeleteLog, onEd
       case 'habit': return 'bg-primary/10 text-primary';
       case 'goal': return 'bg-blue-500/10 text-blue-400';
       case 'event': return 'bg-yellow-500/10 text-yellow-400';
+      case 'friend': return 'bg-purple-500/10 text-purple-400';
+      case 'system': return 'bg-surfaceHighlight text-textMuted';
       default: return 'bg-surfaceHighlight text-textMuted';
     }
   };
@@ -47,17 +60,24 @@ const History: React.FC<HistoryProps> = ({ logs, onReverseLog, onDeleteLog, onEd
       case 'habit': return '🏋️';
       case 'goal': return '🎯';
       case 'event': return '📅';
+      case 'friend': return '👥';
+      case 'system': return '⚙️';
       default: return '⚙️';
     }
   };
 
+  // Filter logs by type
+  const filteredLogs = filterType === 'all' ? logs : logs.filter(l => l.type === filterType);
+
   // Group logs by date
   const groupedLogs: Record<string, ActivityLog[]> = {};
-  logs.forEach(log => {
+  filteredLogs.forEach(log => {
     const dateKey = formatDate(log.timestamp);
     if (!groupedLogs[dateKey]) groupedLogs[dateKey] = [];
     groupedLogs[dateKey].push(log);
   });
+
+  const filterOptions = ['all', 'habit', 'goal', 'event', 'friend', 'system'];
 
   return (
     <div className="max-w-4xl mx-auto pb-20">
@@ -65,6 +85,16 @@ const History: React.FC<HistoryProps> = ({ logs, onReverseLog, onDeleteLog, onEd
         <h2 className="text-primary text-sm font-semibold tracking-wide uppercase mb-1">Timeline</h2>
         <h1 className="text-3xl font-bold text-textMain">Activity History</h1>
         <p className="text-textMuted mt-1">{logs.length} entries total</p>
+      </div>
+
+      {/* Filter buttons */}
+      <div className="flex gap-2 mb-6 flex-wrap">
+        {filterOptions.map(f => (
+          <button key={f} onClick={() => setFilterType(f)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium capitalize border transition-colors ${
+              filterType === f ? 'bg-primary text-white border-primary' : 'bg-surfaceHighlight text-textMuted border-border hover:border-textMuted'
+            }`}>{f}</button>
+        ))}
       </div>
 
       {logs.length === 0 ? (
@@ -88,11 +118,21 @@ const History: React.FC<HistoryProps> = ({ logs, onReverseLog, onDeleteLog, onEd
                     <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center bg-surface border border-border p-4 rounded-lg hover:bg-surfaceHighlight/50 transition-colors">
                       <div className="flex-1 min-w-0">
                         {editingId === log.id ? (
-                          <div className="flex items-center gap-2">
-                            <input type="text" value={editText} onChange={e => setEditText(e.target.value)}
-                              className="flex-1 bg-background border border-border rounded px-3 py-1 text-textMain text-sm focus:outline-none focus:border-primary" />
-                            <button onClick={() => confirmEdit(log.id)} className="p-1 text-primary hover:text-primaryHover"><Check size={16} /></button>
-                            <button onClick={() => setEditingId(null)} className="p-1 text-textMuted hover:text-textMain"><X size={16} /></button>
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2">
+                              <input type="text" value={editText} onChange={e => setEditText(e.target.value)}
+                                className="flex-1 bg-background border border-border rounded px-3 py-1 text-textMain text-sm focus:outline-none focus:border-primary" />
+                              <button onClick={() => confirmEdit(log.id)} className="p-1 text-primary hover:text-primaryHover"><Check size={16} /></button>
+                              <button onClick={() => setEditingId(null)} className="p-1 text-textMuted hover:text-textMain"><X size={16} /></button>
+                            </div>
+                            {log.type === 'goal' && (
+                              <div className="flex items-center gap-2">
+                                <label className="text-xs text-textMuted">New amount:</label>
+                                <input type="number" step="any" value={editAmount} onChange={e => setEditAmount(e.target.value)}
+                                  className="w-24 bg-background border border-border rounded px-2 py-1 text-textMain text-xs focus:outline-none focus:border-primary" />
+                                <span className="text-[10px] text-textMuted">This will adjust the goal's actual value</span>
+                              </div>
+                            )}
                           </div>
                         ) : (
                           <>
