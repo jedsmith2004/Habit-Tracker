@@ -8,6 +8,7 @@ import habitRoutes from './routes/habits';
 import goalRoutes from './routes/goals';
 import logRoutes from './routes/logs';
 import friendRoutes from './routes/friends';
+import eventRoutes from './routes/events';
 
 dotenv.config();
 
@@ -23,6 +24,7 @@ app.use('/api/habits', habitRoutes);
 app.use('/api/goals', goalRoutes);
 app.use('/api/logs', logRoutes);
 app.use('/api/friends', friendRoutes);
+app.use('/api/events', eventRoutes);
 
 // Health check
 app.get('/api/health', (_req, res) => {

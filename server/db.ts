@@ -93,6 +93,39 @@ export async function initDB() {
     );
   `;
 
+  await sql`
+    CREATE TABLE IF NOT EXISTS events (
+      id TEXT PRIMARY KEY,
+      organizer_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      title TEXT NOT NULL,
+      description TEXT NOT NULL DEFAULT '',
+      location TEXT NOT NULL DEFAULT '',
+      date TEXT NOT NULL,
+      time TEXT NOT NULL DEFAULT '',
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS event_rsvps (
+      id SERIAL PRIMARY KEY,
+      event_id TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      status TEXT NOT NULL DEFAULT 'invited', -- 'invited' | 'attending' | 'declined'
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE(event_id, user_id)
+    );
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS pings (
+      id SERIAL PRIMARY KEY,
+      from_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      to_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+  `;
+
   console.log('✅ Database schema initialized');
 
   // --- Migrations for existing tables ---
@@ -102,6 +135,8 @@ export async function initDB() {
     await sql`ALTER TABLE activity_logs ADD COLUMN IF NOT EXISTS reversed BOOLEAN NOT NULL DEFAULT FALSE`;
     await sql`ALTER TABLE activity_logs ADD COLUMN IF NOT EXISTS related_id TEXT`;
     await sql`ALTER TABLE friends ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'accepted'`;
+    // Backfill: mark old habit/goal logs as reversible
+    await sql`UPDATE activity_logs SET reversible = TRUE WHERE type IN ('habit', 'goal') AND reversible = FALSE AND reversed = FALSE AND (description LIKE 'Completed %' OR description LIKE 'Added %' OR description LIKE 'Logged %')`;
     console.log('✅ Database migrations applied');
   } catch (err) {
     // Columns likely already exist, safe to ignore

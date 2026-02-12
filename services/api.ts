@@ -1,5 +1,5 @@
 import { getIdToken } from './firebase';
-import type { Habit, NumericGoal, ActivityLog, Friend, FriendRequest, FeedItem } from '../types';
+import type { Habit, NumericGoal, ActivityLog, Friend, FriendRequest, FeedItem, HabitEvent } from '../types';
 
 const API_BASE = '/api';
 
@@ -120,5 +120,40 @@ export const rejectFriendRequest = (friendId: string) =>
 export const removeFriend = (friendId: string) =>
   request(`/friends/${friendId}`, { method: 'DELETE' });
 
-export const fetchFeed = () =>
-  request<FeedItem[]>('/friends/feed');
+export const fetchFeed = (opts?: { offset?: number; limit?: number; friendId?: string }) => {
+  const params = new URLSearchParams();
+  if (opts?.offset) params.set('offset', String(opts.offset));
+  if (opts?.limit) params.set('limit', String(opts.limit));
+  if (opts?.friendId) params.set('friendId', opts.friendId);
+  const qs = params.toString();
+  return request<FeedItem[]>(`/friends/feed${qs ? `?${qs}` : ''}`);
+};
+
+export const pingFriend = (friendId: string) =>
+  request<{ success: boolean; friendName: string }>('/friends/ping', {
+    method: 'POST',
+    body: JSON.stringify({ friendId }),
+  });
+
+// --- Events ---
+
+export const fetchEvents = () =>
+  request<HabitEvent[]>('/events');
+
+export const createEvent = (event: { id: string; title: string; description: string; location: string; date: string; time: string }) =>
+  request<HabitEvent>('/events', {
+    method: 'POST',
+    body: JSON.stringify(event),
+  });
+
+export const inviteToEvent = (eventId: string, friendIds: string[]) =>
+  request('/events/' + eventId + '/invite', {
+    method: 'POST',
+    body: JSON.stringify({ friendIds }),
+  });
+
+export const rsvpEvent = (eventId: string, attending: boolean) =>
+  request('/events/' + eventId + '/rsvp', {
+    method: 'POST',
+    body: JSON.stringify({ attending }),
+  });

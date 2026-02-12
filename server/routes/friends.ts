@@ -257,24 +257,83 @@ router.delete('/:friendId', requireAuth, async (req: AuthRequest, res) => {
 });
 
 /**
+ * POST /api/friends/ping — ping a friend to workout.
+ * Body: { friendId: string }
+ */
+router.post('/ping', requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const { friendId } = req.body;
+    if (!friendId) return res.status(400).json({ error: 'friendId is required' });
+
+    const [me] = await sql`SELECT name FROM users WHERE id = ${req.uid!}`;
+    const [friend] = await sql`SELECT name FROM users WHERE id = ${friendId}`;
+    if (!friend) return res.status(404).json({ error: 'User not found' });
+
+    // Save ping
+    await sql`INSERT INTO pings (from_user_id, to_user_id) VALUES (${req.uid!}, ${friendId})`;
+
+    // Log for sender
+    await sql`
+      INSERT INTO activity_logs (user_id, type, description)
+      VALUES (${req.uid!}, 'friend', ${`Pinged "${friend.name}" to workout`})
+    `;
+    // Log for recipient (shows in their feed/history)
+    await sql`
+      INSERT INTO activity_logs (user_id, type, description)
+      VALUES (${friendId}, 'friend', ${`${me.name} pinged you to workout! ⚡`})
+    `;
+
+    res.json({ success: true, friendName: friend.name });
+  } catch (err) {
+    console.error('Ping friend error:', err);
+    res.status(500).json({ error: 'Failed to ping friend' });
+  }
+});
+
+/**
  * GET /api/friends/feed — get recent activity from all accepted friends.
- * Returns habit/goal activity logs so friends can see each other's progress.
+ * Supports pagination via ?offset=0&limit=50 and optional ?friendId=xyz for single-friend feed.
  */
 router.get('/feed', requireAuth, async (req: AuthRequest, res) => {
   try {
-    const feedLogs = await sql`
-      SELECT al.*, u.name, u.avatar_url
-      FROM activity_logs al
-      JOIN users u ON u.id = al.user_id
-      WHERE al.user_id IN (
-        SELECT friend_id FROM friends
-        WHERE user_id = ${req.uid!} AND status = 'accepted'
-      )
-      AND al.type IN ('habit', 'goal')
-      AND al.reversed = FALSE
-      ORDER BY al.created_at DESC
-      LIMIT 30
-    `;
+    const offset = Math.max(0, parseInt(req.query.offset as string) || 0);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 50));
+    const friendIdFilter = req.query.friendId as string | undefined;
+
+    let feedLogs;
+    if (friendIdFilter) {
+      // Verify this person is actually a friend
+      const isFriend = await sql`
+        SELECT 1 FROM friends WHERE user_id = ${req.uid!} AND friend_id = ${friendIdFilter} AND status = 'accepted' LIMIT 1
+      `;
+      if (isFriend.length === 0) {
+        return res.status(403).json({ error: 'Not a friend' });
+      }
+      feedLogs = await sql`
+        SELECT al.*, u.name, u.avatar_url
+        FROM activity_logs al
+        JOIN users u ON u.id = al.user_id
+        WHERE al.user_id = ${friendIdFilter}
+        AND al.type IN ('habit', 'goal')
+        AND al.reversed = FALSE
+        ORDER BY al.created_at DESC
+        OFFSET ${offset} LIMIT ${limit}
+      `;
+    } else {
+      feedLogs = await sql`
+        SELECT al.*, u.name, u.avatar_url
+        FROM activity_logs al
+        JOIN users u ON u.id = al.user_id
+        WHERE al.user_id IN (
+          SELECT friend_id FROM friends
+          WHERE user_id = ${req.uid!} AND status = 'accepted'
+        )
+        AND al.type IN ('habit', 'goal')
+        AND al.reversed = FALSE
+        ORDER BY al.created_at DESC
+        OFFSET ${offset} LIMIT ${limit}
+      `;
+    }
 
     const formatted = feedLogs.map(l => ({
       id: l.id.toString(),

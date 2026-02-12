@@ -1,6 +1,6 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { Friend, HabitEvent, FeedItem } from '../types';
-import { MapPin, Search, UserPlus, Zap, CalendarPlus, ChevronRight, Clock, Users, Check, X, ArrowLeft, TrendingUp, Target, Loader2, UserMinus, Send } from 'lucide-react';
+import { MapPin, Search, UserPlus, Zap, CalendarPlus, ChevronRight, Clock, Users, Check, X, ArrowLeft, TrendingUp, Target, Loader2, UserMinus, Send, ChevronDown } from 'lucide-react';
 import { findNearbyPlaces } from '../services/geminiService';
 import * as api from '../services/api';
 
@@ -36,6 +36,20 @@ const Friends: React.FC<FriendsProps> = ({ friends, events, feed, onSendFriendRe
   const [showFriendProfile, setShowFriendProfile] = useState(false);
   const [showInviteModal, setShowInviteModal] = useState<string | null>(null); // eventId
   const [selectedInvitees, setSelectedInvitees] = useState<string[]>([]);
+
+  // Feed pagination state
+  const [showAllFeed, setShowAllFeed] = useState(false);
+  const [paginatedFeed, setPaginatedFeed] = useState<FeedItem[]>([]);
+  const [feedOffset, setFeedOffset] = useState(0);
+  const [feedHasMore, setFeedHasMore] = useState(true);
+  const [feedLoading, setFeedLoading] = useState(false);
+
+  // Friend profile feed pagination state
+  const [friendFeedItems, setFriendFeedItems] = useState<FeedItem[]>([]);
+  const [friendFeedOffset, setFriendFeedOffset] = useState(0);
+  const [friendFeedHasMore, setFriendFeedHasMore] = useState(true);
+  const [friendFeedLoading, setFriendFeedLoading] = useState(false);
+  const [showAllFriendFeed, setShowAllFriendFeed] = useState(false);
 
   // Add Friend search state
   const [addSearchQuery, setAddSearchQuery] = useState('');
@@ -96,6 +110,60 @@ const Friends: React.FC<FriendsProps> = ({ friends, events, feed, onSendFriendRe
     setNewEvent({ title: '', description: '', location: '', date: '', time: '' });
   };
 
+  // --- Feed pagination helpers ---
+  const FEED_PAGE_SIZE = 50;
+  const FEED_PREVIEW_COUNT = 5;
+
+  const loadFullFeed = useCallback(async (reset = false) => {
+    setFeedLoading(true);
+    try {
+      const offset = reset ? 0 : feedOffset;
+      const items = await api.fetchFeed({ offset, limit: FEED_PAGE_SIZE });
+      if (reset) {
+        setPaginatedFeed(items);
+        setFeedOffset(FEED_PAGE_SIZE);
+      } else {
+        setPaginatedFeed(prev => [...prev, ...items]);
+        setFeedOffset(prev => prev + FEED_PAGE_SIZE);
+      }
+      setFeedHasMore(items.length === FEED_PAGE_SIZE);
+    } catch (err) {
+      console.error('Failed to load feed:', err);
+    } finally {
+      setFeedLoading(false);
+    }
+  }, [feedOffset]);
+
+  const handleShowAllFeed = () => {
+    setShowAllFeed(true);
+    loadFullFeed(true);
+  };
+
+  const loadFriendFeed = useCallback(async (friendId: string, reset = false) => {
+    setFriendFeedLoading(true);
+    try {
+      const offset = reset ? 0 : friendFeedOffset;
+      const items = await api.fetchFeed({ offset, limit: FEED_PAGE_SIZE, friendId });
+      if (reset) {
+        setFriendFeedItems(items);
+        setFriendFeedOffset(FEED_PAGE_SIZE);
+      } else {
+        setFriendFeedItems(prev => [...prev, ...items]);
+        setFriendFeedOffset(prev => prev + FEED_PAGE_SIZE);
+      }
+      setFriendFeedHasMore(items.length === FEED_PAGE_SIZE);
+    } catch (err) {
+      console.error('Failed to load friend feed:', err);
+    } finally {
+      setFriendFeedLoading(false);
+    }
+  }, [friendFeedOffset]);
+
+  const handleShowAllFriendFeed = (friendId: string) => {
+    setShowAllFriendFeed(true);
+    loadFriendFeed(friendId, true);
+  };
+
   const timeAgo = (d: Date) => {
     const s = Math.floor((Date.now() - new Date(d).getTime()) / 1000);
     if (s < 60) return 'just now';
@@ -119,6 +187,10 @@ const Friends: React.FC<FriendsProps> = ({ friends, events, feed, onSendFriendRe
   const openFriendProfile = (friend: Friend) => {
     setSelectedFriend(friend);
     setShowFriendProfile(true);
+    setShowAllFriendFeed(false);
+    setFriendFeedItems([]);
+    setFriendFeedOffset(0);
+    setFriendFeedHasMore(true);
   };
 
   const fmt = (n: number) => {
@@ -200,10 +272,50 @@ const Friends: React.FC<FriendsProps> = ({ friends, events, feed, onSendFriendRe
         <h2 className="text-lg font-bold text-textMain mb-4">Recent Activity</h2>
         {(() => {
           const friendFeed = feed.filter(f => f.friendId === selectedFriend.id);
+
+          // Full paginated view
+          if (showAllFriendFeed) {
+            return (
+              <div>
+                <button onClick={() => setShowAllFriendFeed(false)} className="flex items-center gap-2 text-textMuted hover:text-textMain mb-4 transition-colors text-sm">
+                  <ArrowLeft size={14} /> Back to preview
+                </button>
+                <div className="bg-surface border border-border rounded-xl p-4 space-y-3">
+                  {friendFeedItems.map(item => (
+                    <div key={item.id} className="flex items-start gap-3 p-3 rounded-lg hover:bg-surfaceHighlight transition-colors">
+                      <img src={item.friendAvatar} alt="" className="w-9 h-9 rounded-full mt-0.5" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-textMain">{item.description}</p>
+                        <span className="text-xs text-textMuted">{timeAgo(item.timestamp)}</span>
+                      </div>
+                    </div>
+                  ))}
+                  {friendFeedItems.length === 0 && !friendFeedLoading && (
+                    <p className="text-textMuted text-sm text-center py-4">No activity found.</p>
+                  )}
+                  {friendFeedLoading && (
+                    <div className="flex items-center justify-center gap-2 py-4 text-textMuted">
+                      <Loader2 size={18} className="animate-spin" /> <span className="text-sm">Loading...</span>
+                    </div>
+                  )}
+                  {friendFeedHasMore && !friendFeedLoading && friendFeedItems.length > 0 && (
+                    <button onClick={() => loadFriendFeed(selectedFriend.id)}
+                      className="w-full flex items-center justify-center gap-2 py-3 text-primary hover:text-primaryHover text-sm font-medium transition-colors rounded-lg hover:bg-primary/5">
+                      <ChevronDown size={16} /> Load More
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          }
+
+          // Clipped preview (5 items)
           if (friendFeed.length === 0) return <p className="text-textMuted text-sm bg-surface border border-border rounded-xl p-6 text-center">No recent activity.</p>;
+          const previewItems = friendFeed.slice(0, FEED_PREVIEW_COUNT);
+          const hasMore = friendFeed.length > FEED_PREVIEW_COUNT;
           return (
             <div className="bg-surface border border-border rounded-xl p-4 space-y-3">
-              {friendFeed.map(item => (
+              {previewItems.map(item => (
                 <div key={item.id} className="flex items-start gap-3 p-3 rounded-lg hover:bg-surfaceHighlight transition-colors">
                   <img src={item.friendAvatar} alt="" className="w-9 h-9 rounded-full mt-0.5" />
                   <div className="flex-1 min-w-0">
@@ -212,6 +324,12 @@ const Friends: React.FC<FriendsProps> = ({ friends, events, feed, onSendFriendRe
                   </div>
                 </div>
               ))}
+              {hasMore && (
+                <button onClick={() => handleShowAllFriendFeed(selectedFriend.id)}
+                  className="w-full flex items-center justify-center gap-2 py-3 text-primary hover:text-primaryHover text-sm font-medium transition-colors rounded-lg hover:bg-primary/5 border-t border-border mt-2 pt-3">
+                  See All Activity →
+                </button>
+              )}
             </div>
           );
         })()}
@@ -263,21 +381,65 @@ const Friends: React.FC<FriendsProps> = ({ friends, events, feed, onSendFriendRe
           </div>
 
           {/* Feed */}
-          <div className="bg-surface border border-border rounded-xl p-4">
-            <h3 className="font-bold text-textMain mb-4">Activity Feed</h3>
-            <div className="space-y-3">
-              {feed.map(item => (
-                <div key={item.id} className="flex items-start gap-3 p-3 rounded-lg hover:bg-surfaceHighlight transition-colors">
-                  <img src={item.friendAvatar} alt="" className="w-9 h-9 rounded-full mt-0.5" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm text-textMain"><span className="font-semibold">{item.friendName}</span> {item.description}</p>
-                    <span className="text-xs text-textMuted">{timeAgo(item.timestamp)}</span>
+          {showAllFeed ? (
+            /* Full paginated feed page */
+            <div className="bg-surface border border-border rounded-xl p-4">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-bold text-textMain">Activity Feed</h3>
+                <button onClick={() => setShowAllFeed(false)} className="flex items-center gap-1 text-sm text-textMuted hover:text-textMain transition-colors">
+                  <ArrowLeft size={14} /> Back
+                </button>
+              </div>
+              <div className="space-y-3">
+                {paginatedFeed.map(item => (
+                  <div key={item.id} className="flex items-start gap-3 p-3 rounded-lg hover:bg-surfaceHighlight transition-colors">
+                    <img src={item.friendAvatar} alt="" className="w-9 h-9 rounded-full mt-0.5" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-textMain"><span className="font-semibold">{item.friendName}</span> {item.description}</p>
+                      <span className="text-xs text-textMuted">{timeAgo(item.timestamp)}</span>
+                    </div>
                   </div>
-                </div>
-              ))}
-              {feed.length === 0 && <p className="text-textMuted text-sm">No recent activity from friends.</p>}
+                ))}
+                {paginatedFeed.length === 0 && !feedLoading && (
+                  <p className="text-textMuted text-sm text-center py-4">No activity from friends yet.</p>
+                )}
+                {feedLoading && (
+                  <div className="flex items-center justify-center gap-2 py-4 text-textMuted">
+                    <Loader2 size={18} className="animate-spin" /> <span className="text-sm">Loading...</span>
+                  </div>
+                )}
+                {feedHasMore && !feedLoading && paginatedFeed.length > 0 && (
+                  <button onClick={() => loadFullFeed()}
+                    className="w-full flex items-center justify-center gap-2 py-3 text-primary hover:text-primaryHover text-sm font-medium transition-colors rounded-lg hover:bg-primary/5 border-t border-border mt-2 pt-3">
+                    <ChevronDown size={16} /> Load More
+                  </button>
+                )}
+              </div>
             </div>
-          </div>
+          ) : (
+            /* Clipped feed preview (5 items) */
+            <div className="bg-surface border border-border rounded-xl p-4">
+              <h3 className="font-bold text-textMain mb-4">Activity Feed</h3>
+              <div className="space-y-3">
+                {feed.slice(0, FEED_PREVIEW_COUNT).map(item => (
+                  <div key={item.id} className="flex items-start gap-3 p-3 rounded-lg hover:bg-surfaceHighlight transition-colors">
+                    <img src={item.friendAvatar} alt="" className="w-9 h-9 rounded-full mt-0.5" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-textMain"><span className="font-semibold">{item.friendName}</span> {item.description}</p>
+                      <span className="text-xs text-textMuted">{timeAgo(item.timestamp)}</span>
+                    </div>
+                  </div>
+                ))}
+                {feed.length === 0 && <p className="text-textMuted text-sm">No recent activity from friends.</p>}
+                {feed.length > FEED_PREVIEW_COUNT && (
+                  <button onClick={handleShowAllFeed}
+                    className="w-full flex items-center justify-center gap-2 py-3 text-primary hover:text-primaryHover text-sm font-medium transition-colors rounded-lg hover:bg-primary/5 border-t border-border mt-2 pt-3">
+                    See All Activity →
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Events */}
           <div className="bg-surface border border-border rounded-xl p-4">

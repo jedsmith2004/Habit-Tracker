@@ -66,13 +66,14 @@ const App: React.FC = () => {
     if (!user) return;
     setDataLoading(true);
     try {
-      const [h, g, l, fr, frReq, feedData] = await Promise.all([
+      const [h, g, l, fr, frReq, feedData, evts] = await Promise.all([
         api.fetchHabits(),
         api.fetchGoals(),
         api.fetchLogs(),
         api.fetchFriends(),
         api.fetchFriendRequests(),
         api.fetchFeed(),
+        api.fetchEvents(),
       ]);
       setHabits(h);
       setGoals(g);
@@ -80,6 +81,7 @@ const App: React.FC = () => {
       setFriends(fr);
       setFriendRequests(frReq);
       setFeed(feedData);
+      setEvents(evts);
 
       // Generate notifications for pending friend requests
       const frNotifs: AppNotification[] = frReq.map(r => ({
@@ -452,7 +454,7 @@ const App: React.FC = () => {
     }
   };
 
-  const handlePingFriend = (friendId: string) => {
+  const handlePingFriend = async (friendId: string) => {
     const friend = friends.find(f => f.id === friendId);
     if (!friend) return;
     setNotifications(prev => [
@@ -463,9 +465,14 @@ const App: React.FC = () => {
       { id: `log-${Date.now()}`, type: 'friend', description: `Pinged "${friend.name}" to workout`, timestamp: new Date() },
       ...prev,
     ]);
+    try {
+      await api.pingFriend(friendId);
+    } catch (err) {
+      console.error('Failed to ping friend:', err);
+    }
   };
 
-  const handleRSVP = (eventId: string, attending: boolean) => {
+  const handleRSVP = async (eventId: string, attending: boolean) => {
     if (!user) return;
     setEvents(prev => prev.map(e => {
       if (e.id !== eventId) return e;
@@ -487,12 +494,19 @@ const App: React.FC = () => {
         ...prev,
       ]);
     }
+    try {
+      await api.rsvpEvent(eventId, attending);
+    } catch (err) {
+      console.error('Failed to RSVP:', err);
+      loadData();
+    }
   };
 
-  const handleCreateEvent = (eventData: { title: string; description: string; location: string; date: string; time: string }) => {
+  const handleCreateEvent = async (eventData: { title: string; description: string; location: string; date: string; time: string }) => {
     if (!user) return;
+    const eventId = `event-${Date.now()}`;
     const newEvent: HabitEvent = {
-      id: `event-${Date.now()}`,
+      id: eventId,
       ...eventData,
       organizer: user.name,
       organizerId: user.id,
@@ -509,9 +523,15 @@ const App: React.FC = () => {
       { id: `notif-${Date.now()}`, message: `📅 Event "${eventData.title}" created!`, timestamp: new Date(), read: false, type: 'event' },
       ...prev,
     ]);
+    try {
+      await api.createEvent({ id: eventId, ...eventData });
+    } catch (err) {
+      console.error('Failed to create event:', err);
+      loadData();
+    }
   };
 
-  const handleInviteToEvent = (eventId: string, friendIds: string[]) => {
+  const handleInviteToEvent = async (eventId: string, friendIds: string[]) => {
     setEvents(prev => prev.map(e => {
       if (e.id !== eventId) return e;
       const newInvitees = [...new Set([...e.invitees, ...friendIds])];
@@ -532,6 +552,12 @@ const App: React.FC = () => {
         { id: `log-${Date.now()}`, type: 'event', description: `Invited ${friendIds.length} friend(s) to "${event.title}"`, timestamp: new Date() },
         ...prev,
       ]);
+    }
+    try {
+      await api.inviteToEvent(eventId, friendIds);
+    } catch (err) {
+      console.error('Failed to invite to event:', err);
+      loadData();
     }
   };
 
