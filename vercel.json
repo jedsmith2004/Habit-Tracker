@@ -3,13 +3,6 @@
   "buildCommand": "vite build",
   "outputDirectory": "dist",
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api" }
-  ],
-  "functions": {
-    "api/index.ts": {
-      "memory": 512,
-      "maxDuration": 30,
-      "includeFiles": "server/**"
-    }
-  }
+    { "source": "/((?!api).*)", "destination": "/index.html" }
+  ]
 }

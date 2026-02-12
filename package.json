@@ -8,7 +8,8 @@
     "dev:server": "tsx watch server/index.ts",
     "dev:all": "npx concurrently \"npm run dev\" \"npm run dev:server\"",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "start:server": "tsx server/index.ts"
   },
   "dependencies": {
     "@google/genai": "^1.41.0",
