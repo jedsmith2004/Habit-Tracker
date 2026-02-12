@@ -19,4 +19,4 @@ View your app in AI Studio: https://ai.studio/apps/drive/158ZlPkjt0kIxDpDQ8S3LDk
 3. Run the app:
    `npm run dev`
 
-REDEPLOY
+REDEPLOY2
