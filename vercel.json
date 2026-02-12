@@ -1,0 +1,14 @@
+{
+  "version": 2,
+  "buildCommand": "vite build",
+  "outputDirectory": "dist",
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "/api" }
+  ],
+  "functions": {
+    "api/index.ts": {
+      "memory": 256,
+      "maxDuration": 30
+    }
+  }
+}
