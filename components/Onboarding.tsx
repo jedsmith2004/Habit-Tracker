@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { NumericGoal, Habit } from '../types';
+import * as api from '../services/api';
+import { Search, Loader2, UserPlus, Check } from 'lucide-react';
 
 interface OnboardingProps {
   onComplete: (goals: NumericGoal[], habits: Habit[]) => void;
@@ -34,6 +36,52 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
   const [customHabit, setCustomHabit] = useState({ title: '', isNegative: false });
   const [customGoals, setCustomGoals] = useState<{ title: string; target: number; unit: string }[]>([]);
   const [customHabits, setCustomHabits] = useState<{ title: string; isNegative: boolean }[]>([]);
+
+  // Friend invite state
+  const [friendQuery, setFriendQuery] = useState('');
+  const [friendResults, setFriendResults] = useState<{ id: string; name: string; email: string; avatarUrl: string }[]>([]);
+  const [friendSearching, setFriendSearching] = useState(false);
+  const [sentRequests, setSentRequests] = useState<Set<string>>(new Set());
+  const [sendingId, setSendingId] = useState<string | null>(null);
+  const [inviteError, setInviteError] = useState<string | null>(null);
+  const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Debounced friend search
+  useEffect(() => {
+    if (friendQuery.trim().length < 2) {
+      setFriendResults([]);
+      setFriendSearching(false);
+      return;
+    }
+    setFriendSearching(true);
+    setInviteError(null);
+    if (searchTimeout.current) clearTimeout(searchTimeout.current);
+    searchTimeout.current = setTimeout(async () => {
+      try {
+        const results = await api.searchUsers(friendQuery.trim());
+        setFriendResults(results);
+      } catch (err) {
+        console.error('Friend search failed:', err);
+        setFriendResults([]);
+      } finally {
+        setFriendSearching(false);
+      }
+    }, 400);
+    return () => { if (searchTimeout.current) clearTimeout(searchTimeout.current); };
+  }, [friendQuery]);
+
+  const handleSendRequest = async (userId: string) => {
+    setSendingId(userId);
+    setInviteError(null);
+    try {
+      await api.sendFriendRequest(userId);
+      setSentRequests(prev => new Set(prev).add(userId));
+    } catch (err: any) {
+      setInviteError(err.message || 'Failed to send request');
+    } finally {
+      setSendingId(null);
+    }
+  };
 
   const toggleGoal = (idx: number) => {
     setSelectedGoals(prev => prev.includes(idx) ? prev.filter(i => i !== idx) : [...prev, idx]);
@@ -248,20 +296,92 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
           <>
             <div className="text-center mb-8">
               <h1 className="text-3xl font-bold text-textMain mb-2">Invite Friends</h1>
-              <p className="text-textMuted">Step 3: (Optional) Invite friends to keep each other accountable.</p>
+              <p className="text-textMuted">Step 3: (Optional) Search for friends by name or email.</p>
             </div>
 
-            <div className="bg-surfaceHighlight/50 border border-border rounded-xl p-6 text-center mb-6">
-              <p className="text-textMuted mb-4">Share your invite link or search for friends by email.</p>
-              <div className="flex gap-2 max-w-md mx-auto">
-                <input type="text" placeholder="Enter friend's email..."
-                  className="flex-1 bg-background border border-border rounded-lg px-4 py-2.5 text-textMain placeholder-textMuted focus:outline-none focus:border-primary" />
-                <button className="bg-surfaceHighlight hover:bg-surface border border-border text-textMain px-4 py-2.5 rounded-lg transition-colors">
-                  Send Invite
-                </button>
+            <div className="border border-border rounded-xl p-5 mb-6">
+              {/* Search input */}
+              <div className="relative mb-4">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-textMuted" />
+                <input
+                  type="text"
+                  placeholder="Search by name or email..."
+                  value={friendQuery}
+                  onChange={e => setFriendQuery(e.target.value)}
+                  className="w-full bg-background border border-border rounded-lg pl-10 pr-4 py-2.5 text-textMain placeholder-textMuted text-sm focus:outline-none focus:border-primary"
+                />
+                {friendSearching && (
+                  <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-textMuted animate-spin" />
+                )}
               </div>
-              <p className="text-xs text-textMuted mt-4">You can always add friends later from the Friends tab.</p>
+
+              {/* Error message */}
+              {inviteError && (
+                <p className="text-danger text-xs mb-3">{inviteError}</p>
+              )}
+
+              {/* Search results */}
+              {friendResults.length > 0 && (
+                <div className="space-y-2 max-h-60 overflow-y-auto">
+                  {friendResults.map(user => {
+                    const alreadySent = sentRequests.has(user.id);
+                    const isSending = sendingId === user.id;
+                    return (
+                      <div key={user.id} className="flex items-center justify-between bg-surfaceHighlight/50 rounded-lg px-3 py-2.5">
+                        <div className="flex items-center gap-3 min-w-0">
+                          {user.avatarUrl ? (
+                            <img src={user.avatarUrl} alt="" className="w-8 h-8 rounded-full object-cover flex-shrink-0" />
+                          ) : (
+                            <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
+                              <span className="text-primary text-sm font-bold">{user.name.charAt(0).toUpperCase()}</span>
+                            </div>
+                          )}
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium text-textMain truncate">{user.name}</p>
+                            <p className="text-xs text-textMuted truncate">{user.email}</p>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => handleSendRequest(user.id)}
+                          disabled={alreadySent || isSending}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex-shrink-0 ${
+                            alreadySent
+                              ? 'bg-primary/10 text-primary cursor-default'
+                              : 'bg-primary hover:bg-primaryHover text-white disabled:opacity-50'
+                          }`}
+                        >
+                          {isSending ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : alreadySent ? (
+                            <><Check className="w-3.5 h-3.5" /> Sent</>
+                          ) : (
+                            <><UserPlus className="w-3.5 h-3.5" /> Add</>
+                          )}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Empty state */}
+              {friendQuery.trim().length >= 2 && !friendSearching && friendResults.length === 0 && (
+                <p className="text-center text-textMuted text-sm py-4">No users found matching "{friendQuery}"</p>
+              )}
+
+              {friendQuery.trim().length < 2 && (
+                <p className="text-center text-textMuted text-xs py-2">Type at least 2 characters to search</p>
+              )}
+
+              {/* Sent summary */}
+              {sentRequests.size > 0 && (
+                <div className="mt-4 pt-3 border-t border-border">
+                  <p className="text-xs text-primary font-medium">✓ {sentRequests.size} friend request{sentRequests.size !== 1 ? 's' : ''} sent</p>
+                </div>
+              )}
             </div>
+
+            <p className="text-xs text-textMuted text-center mb-4">You can always add more friends later from the Friends tab.</p>
 
             <div className="bg-surface border border-border rounded-xl p-4 mb-6">
               <h4 className="text-sm font-bold text-textMain mb-2">Your Setup Summary</h4>
