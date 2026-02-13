@@ -49,6 +49,12 @@ export const createHabit = (habit: { id: string; title: string; category: string
 export const deleteHabit = (id: string) =>
   request(`/habits/${id}`, { method: 'DELETE' });
 
+export const editHabit = (habitId: string, updates: { title?: string }) =>
+  request(`/habits/${habitId}`, {
+    method: 'PUT',
+    body: JSON.stringify(updates),
+  });
+
 export const toggleHabitEntry = (habitId: string, date: string, status: string | null) =>
   request(`/habits/${habitId}/entries`, {
     method: 'PUT',
@@ -67,6 +73,12 @@ export const createGoal = (goal: { id: string; title: string; category: string; 
 
 export const deleteGoal = (id: string) =>
   request(`/goals/${id}`, { method: 'DELETE' });
+
+export const editGoal = (goalId: string, updates: { title?: string; target?: number; deadline?: string }) =>
+  request(`/goals/${goalId}`, {
+    method: 'PUT',
+    body: JSON.stringify(updates),
+  });
 
 export const addGoalProgress = (goalId: string, amount: number) =>
   request(`/goals/${goalId}/add`, {

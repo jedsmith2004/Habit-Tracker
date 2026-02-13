@@ -63,9 +63,37 @@ router.post('/', requireAuth, async (req: AuthRequest, res) => {
 router.delete('/:id', requireAuth, async (req: AuthRequest, res) => {
   try {
     await sql`DELETE FROM habits WHERE id = ${req.params.id} AND user_id = ${req.uid!}`;
+    await sql`
+      INSERT INTO activity_logs (user_id, type, description)
+      VALUES (${req.uid!}, 'habit', 'Deleted a habit')
+    `;
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: 'Failed to delete habit' });
+  }
+});
+
+/**
+ * PUT /api/habits/:id — edit a habit (e.g. rename).
+ */
+router.put('/:id', requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const { title } = req.body;
+    const habitId = req.params.id;
+    const [habit] = await sql`
+      UPDATE habits SET title = ${title}
+      WHERE id = ${habitId} AND user_id = ${req.uid!}
+      RETURNING *
+    `;
+    if (!habit) return res.status(404).json({ error: 'Habit not found' });
+    await sql`
+      INSERT INTO activity_logs (user_id, type, description)
+      VALUES (${req.uid!}, 'habit', ${'Renamed habit to "' + title + '"'})
+    `;
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Edit habit error:', err);
+    res.status(500).json({ error: 'Failed to edit habit' });
   }
 });
 

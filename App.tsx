@@ -17,7 +17,9 @@ const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [isOnboarding, setIsOnboarding] = useState(false);
-  const [activeTab, setActiveTab] = useState('dashboard');
+  const [activeTab, setActiveTab] = useState(() => {
+    return sessionStorage.getItem('habitflow-tab') || 'dashboard'
+  });
 
   // Data state
   const [habits, setHabits] = useState<Habit[]>([]);
@@ -30,36 +32,10 @@ const App: React.FC = () => {
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [dataLoading, setDataLoading] = useState(false);
 
-  // Listen for Firebase auth state changes
+  // Listen to active tab changes
   useEffect(() => {
-    const unsubscribe = onAuthChange(async (firebaseUser) => {
-      if (firebaseUser) {
-        try {
-          await api.syncUser(
-            firebaseUser.displayName || 'User',
-            firebaseUser.photoURL || undefined
-          );
-        } catch (err) {
-          console.error('User sync failed:', err);
-        }
-
-        setUser({
-          id: firebaseUser.uid,
-          name: firebaseUser.displayName || 'User',
-          email: firebaseUser.email || '',
-          avatarUrl: firebaseUser.photoURL || undefined,
-        });
-      } else {
-        setUser(null);
-        setHabits([]);
-        setGoals([]);
-        setLogs([]);
-      }
-      setAuthLoading(false);
-    });
-
-    return () => unsubscribe();
-  }, []);
+    sessionStorage.setItem('habitflow-tab', activeTab)
+  }, [activeTab]);
 
   // Load data from API when user is authenticated
   const loadData = useCallback(async () => {
@@ -113,6 +89,37 @@ const App: React.FC = () => {
     loadData();
   }, [loadData]);
 
+  // Listen for Firebase auth state changes
+  useEffect(() => {
+    const unsubscribe = onAuthChange(async (firebaseUser) => {
+      if (firebaseUser) {
+        try {
+          await api.syncUser(
+            firebaseUser.displayName || 'User',
+            firebaseUser.photoURL || undefined
+          );
+        } catch (err) {
+          console.error('User sync failed:', err);
+        }
+
+        setUser({
+          id: firebaseUser.uid,
+          name: firebaseUser.displayName || 'User',
+          email: firebaseUser.email || '',
+          avatarUrl: firebaseUser.photoURL || undefined,
+        });
+      } else {
+        setUser(null);
+        setHabits([]);
+        setGoals([]);
+        setLogs([]);
+      }
+      setAuthLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
   // Handlers
   const handleOnboardingComplete = async (newGoals: NumericGoal[], newHabits: Habit[]) => {
     // Save onboarding goals
@@ -144,7 +151,7 @@ const App: React.FC = () => {
       }
     }
     setIsOnboarding(false);
-    loadData();
+    await loadData();
   };
 
   const handleToggleHabit = async (habitId: string, date: string) => {
@@ -190,9 +197,10 @@ const App: React.FC = () => {
 
     try {
       await api.toggleHabitEntry(habitId, date, nextStatus);
+      await loadData();
     } catch (err) {
       console.error('Failed to toggle habit:', err);
-      loadData();
+      await loadData();
     }
   };
 
@@ -223,9 +231,10 @@ const App: React.FC = () => {
 
     try {
       await api.addGoalProgress(goalId, valueToAdd);
+      await loadData();
     } catch (err) {
       console.error('Failed to update goal:', err);
-      loadData();
+      await loadData();
     }
   };
 
@@ -237,12 +246,8 @@ const App: React.FC = () => {
       isNegative: habit.isNegative,
     };
     try {
-      const created = await api.createHabit(newHabit);
-      setHabits(prev => [...prev, created]);
-      setLogs(prev => [
-        { id: `log-${Date.now()}`, type: 'habit', description: `Created habit "${habit.title}"`, timestamp: new Date() },
-        ...prev,
-      ]);
+      await api.createHabit(newHabit);
+      await loadData();
     } catch (err) {
       console.error('Failed to create habit:', err);
     }
@@ -258,12 +263,8 @@ const App: React.FC = () => {
       deadline: goal.deadline,
     };
     try {
-      const created = await api.createGoal(newGoal);
-      setGoals(prev => [...prev, created]);
-      setLogs(prev => [
-        { id: `log-${Date.now()}`, type: 'goal', description: `Created goal "${goal.title}" — target: ${goal.target} ${goal.unit}`, timestamp: new Date() },
-        ...prev,
-      ]);
+      await api.createGoal(newGoal);
+      await loadData();
     } catch (err) {
       console.error('Failed to create goal:', err);
     }
@@ -278,9 +279,10 @@ const App: React.FC = () => {
     ]);
     try {
       await api.deleteHabit(habitId);
+      await loadData();
     } catch (err) {
       console.error('Failed to delete habit:', err);
-      loadData();
+      await loadData();
     }
   };
 
@@ -292,9 +294,10 @@ const App: React.FC = () => {
     ]);
     try {
       await api.deleteGoal(goalId);
+      await loadData();
     } catch (err) {
       console.error('Failed to delete goal:', err);
-      loadData();
+      await loadData();
     }
   };
 
@@ -329,9 +332,10 @@ const App: React.FC = () => {
     // Persist to server
     try {
       await api.reverseLog(logId);
+      await loadData();
     } catch (err) {
       console.error('Failed to reverse log:', err);
-      loadData(); // rollback by reloading
+      await loadData();
     }
   };
 
@@ -354,46 +358,45 @@ const App: React.FC = () => {
     setLogs(prev => prev.map(l => l.id === logId ? { ...l, description: newDescription } : l));
     try {
       await api.editLog(logId, newDescription, newAmount);
+      await loadData();
     } catch (err) {
       console.error('Failed to edit log:', err);
-      loadData();
+      await loadData();
     }
   };
 
   // Edit handlers for Account page
-  const handleEditHabit = (habitId: string, updates: { title?: string }) => {
+  const handleEditHabit = async (habitId: string, updates: { title?: string }) => {
     setHabits(prev => prev.map(h =>
       h.id === habitId ? { ...h, ...updates } : h
     ));
-    setLogs(prev => [
-      { id: `log-${Date.now()}`, type: 'habit', description: `Updated habit "${updates.title}"`, timestamp: new Date() },
-      ...prev,
-    ]);
+    try {
+      await api.editHabit(habitId, updates);
+      await loadData();
+    } catch (err) {
+      console.error('Failed to edit habit:', err);
+      await loadData();
+    }
   };
 
-  const handleEditGoal = (goalId: string, updates: { title?: string; target?: number; deadline?: string }) => {
+  const handleEditGoal = async (goalId: string, updates: { title?: string; target?: number; deadline?: string }) => {
     setGoals(prev => prev.map(g =>
       g.id === goalId ? { ...g, ...updates } : g
     ));
-    const goal = goals.find(g => g.id === goalId);
-    setLogs(prev => [
-      { id: `log-${Date.now()}`, type: 'goal', description: `Updated goal "${updates.title || goal?.title}"`, timestamp: new Date() },
-      ...prev,
-    ]);
+    try {
+      await api.editGoal(goalId, updates);
+      await loadData();
+    } catch (err) {
+      console.error('Failed to edit goal:', err);
+      await loadData();
+    }
   };
 
   // ---------- Friend Handlers ----------
   const handleSendFriendRequest = async (friendId: string) => {
     try {
-      const result = await api.sendFriendRequest(friendId);
-      setLogs(prev => [
-        { id: `log-${Date.now()}`, type: 'friend', description: `Sent friend request to "${result.name}"`, timestamp: new Date() },
-        ...prev,
-      ]);
-      setNotifications(prev => [
-        { id: `notif-${Date.now()}`, message: `📤 Friend request sent to ${result.name}`, timestamp: new Date(), read: false, type: 'friend' },
-        ...prev,
-      ]);
+      await api.sendFriendRequest(friendId);
+      await loadData();
     } catch (err) {
       console.error('Failed to send friend request:', err);
     }
@@ -401,22 +404,8 @@ const App: React.FC = () => {
 
   const handleAcceptFriendRequest = async (friendId: string) => {
     try {
-      const newFriend = await api.acceptFriendRequest(friendId);
-      setFriends(prev => [...prev, newFriend]);
-      setFriendRequests(prev => prev.filter(r => r.id !== friendId));
-      // Remove the friend request notification
-      setNotifications(prev => prev.filter(n => !(n.actionType === 'friend_request' && n.actionData?.friendId === friendId)));
-      setLogs(prev => [
-        { id: `log-${Date.now()}`, type: 'friend', description: `Accepted friend request from "${newFriend.name}"`, timestamp: new Date() },
-        ...prev,
-      ]);
-      setNotifications(prev => [
-        { id: `notif-${Date.now()}`, message: `✅ You and ${newFriend.name} are now friends!`, timestamp: new Date(), read: false, type: 'friend' },
-        ...prev,
-      ]);
-      // Refresh feed since we have a new friend
-      const feedData = await api.fetchFeed();
-      setFeed(feedData);
+      await api.acceptFriendRequest(friendId);
+      await loadData();
     } catch (err) {
       console.error('Failed to accept friend request:', err);
     }
@@ -425,13 +414,7 @@ const App: React.FC = () => {
   const handleRejectFriendRequest = async (friendId: string) => {
     try {
       await api.rejectFriendRequest(friendId);
-      const req = friendRequests.find(r => r.id === friendId);
-      setFriendRequests(prev => prev.filter(r => r.id !== friendId));
-      setNotifications(prev => prev.filter(n => !(n.actionType === 'friend_request' && n.actionData?.friendId === friendId)));
-      setLogs(prev => [
-        { id: `log-${Date.now()}`, type: 'friend', description: `Declined friend request from "${req?.name || 'someone'}"`, timestamp: new Date() },
-        ...prev,
-      ]);
+      await loadData();
     } catch (err) {
       console.error('Failed to reject friend request:', err);
     }
@@ -448,9 +431,10 @@ const App: React.FC = () => {
     }
     try {
       await api.removeFriend(friendId);
+      await loadData();
     } catch (err) {
       console.error('Failed to remove friend:', err);
-      if (friend) setFriends(prev => [...prev, friend]);
+      await loadData();
     }
   };
 
@@ -467,6 +451,7 @@ const App: React.FC = () => {
     ]);
     try {
       await api.pingFriend(friendId);
+      await loadData();
     } catch (err) {
       console.error('Failed to ping friend:', err);
     }
@@ -496,9 +481,10 @@ const App: React.FC = () => {
     }
     try {
       await api.rsvpEvent(eventId, attending);
+      await loadData();
     } catch (err) {
       console.error('Failed to RSVP:', err);
-      loadData();
+      await loadData();
     }
   };
 
@@ -525,9 +511,10 @@ const App: React.FC = () => {
     ]);
     try {
       await api.createEvent({ id: eventId, ...eventData });
+      await loadData();
     } catch (err) {
       console.error('Failed to create event:', err);
-      loadData();
+      await loadData();
     }
   };
 
@@ -555,9 +542,10 @@ const App: React.FC = () => {
     }
     try {
       await api.inviteToEvent(eventId, friendIds);
+      await loadData();
     } catch (err) {
       console.error('Failed to invite to event:', err);
-      loadData();
+      await loadData();
     }
   };
 

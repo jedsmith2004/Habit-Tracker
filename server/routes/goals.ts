@@ -62,9 +62,47 @@ router.post('/', requireAuth, async (req: AuthRequest, res) => {
 router.delete('/:id', requireAuth, async (req: AuthRequest, res) => {
   try {
     await sql`DELETE FROM goals WHERE id = ${req.params.id} AND user_id = ${req.uid!}`;
+    await sql`
+      INSERT INTO activity_logs (user_id, type, description)
+      VALUES (${req.uid!}, 'system', 'Deleted a goal')
+    `;
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: 'Failed to delete goal' });
+  }
+});
+
+/**
+ * PUT /api/goals/:id — edit a goal (title, target, deadline).
+ */
+router.put('/:id', requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const goalId = req.params.id;
+    const { title, target, deadline } = req.body;
+
+    // Build dynamic update
+    const [existing] = await sql`SELECT * FROM goals WHERE id = ${goalId} AND user_id = ${req.uid!}`;
+    if (!existing) return res.status(404).json({ error: 'Goal not found' });
+
+    const newTitle = title !== undefined ? title : existing.title;
+    const newTarget = target !== undefined ? target : existing.target;
+    const newDeadline = deadline !== undefined ? deadline : existing.deadline;
+
+    const [goal] = await sql`
+      UPDATE goals SET title = ${newTitle}, target = ${newTarget}, deadline = ${newDeadline}
+      WHERE id = ${goalId} AND user_id = ${req.uid!}
+      RETURNING *
+    `;
+
+    await sql`
+      INSERT INTO activity_logs (user_id, type, description)
+      VALUES (${req.uid!}, 'goal', ${'Updated goal "' + newTitle + '"'})
+    `;
+
+    res.json({ ...goal, target: Number(goal.target), current: Number(goal.current) });
+  } catch (err) {
+    console.error('Edit goal error:', err);
+    res.status(500).json({ error: 'Failed to edit goal' });
   }
 });
 
