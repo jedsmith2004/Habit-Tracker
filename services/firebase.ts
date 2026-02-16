@@ -4,6 +4,7 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signOut,
+  deleteUser,
   onAuthStateChanged,
   updateProfile,
   GoogleAuthProvider,
@@ -39,6 +40,11 @@ export const registerWithEmail = async (email: string, password: string, display
 export const loginWithGoogle = () => signInWithPopup(auth, googleProvider);
 
 export const logout = () => signOut(auth);
+
+export const deleteCurrentAuthUser = async () => {
+  if (!auth.currentUser) return;
+  await deleteUser(auth.currentUser);
+};
 
 export const onAuthChange = (callback: (user: FirebaseUser | null) => void) =>
   onAuthStateChanged(auth, callback);

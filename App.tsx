@@ -9,7 +9,7 @@ import Auth from './components/Auth';
 import Onboarding from './components/Onboarding';
 import Friends from './components/Friends';
 import { User, Habit, NumericGoal, HabitStatus, ActivityLog, Friend, FriendRequest, HabitEvent, FeedItem, Notification as AppNotification } from './types';
-import { onAuthChange, logout } from './services/firebase';
+import { onAuthChange, logout, deleteCurrentAuthUser } from './services/firebase';
 import * as api from './services/api';
 
 const App: React.FC = () => {
@@ -366,7 +366,7 @@ const App: React.FC = () => {
   };
 
   // Edit handlers for Account page
-  const handleEditHabit = async (habitId: string, updates: { title?: string }) => {
+  const handleEditHabit = async (habitId: string, updates: { title?: string; category?: Habit['category'] }) => {
     setHabits(prev => prev.map(h =>
       h.id === habitId ? { ...h, ...updates } : h
     ));
@@ -554,6 +554,30 @@ const App: React.FC = () => {
     setUser(null);
   };
 
+  const handleDeleteAccount = async () => {
+    try {
+      await api.deleteAccount();
+      try {
+        await deleteCurrentAuthUser();
+      } catch (firebaseErr) {
+        console.warn('Firebase user deletion failed (may require recent login):', firebaseErr);
+      }
+    } catch (err) {
+      console.error('Failed to delete account:', err);
+    } finally {
+      await logout();
+      setUser(null);
+      setHabits([]);
+      setGoals([]);
+      setLogs([]);
+      setFriends([]);
+      setFriendRequests([]);
+      setEvents([]);
+      setFeed([]);
+      setNotifications([]);
+    }
+  };
+
   // Rendering
   if (authLoading) {
     return (
@@ -621,13 +645,19 @@ const App: React.FC = () => {
           onEditLog={handleEditLog}
         />
       )}
-      {activeTab === 'settings' && <Settings />}
+      {activeTab === 'settings' && (
+        <Settings
+          habits={habits}
+          onUpdateHabitCategory={(habitId, category) => handleEditHabit(habitId, { category })}
+        />
+      )}
       {activeTab === 'account' && (
         <Account
           user={user}
           habits={habits}
           goals={goals}
           onUpdateUser={setUser}
+          onDeleteAccount={handleDeleteAccount}
           onDeleteHabit={handleDeleteHabit}
           onDeleteGoal={handleDeleteGoal}
           onEditHabit={handleEditHabit}

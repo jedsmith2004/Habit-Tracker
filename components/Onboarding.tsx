@@ -33,9 +33,9 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
   const [goalTargets, setGoalTargets] = useState<Record<number, number>>({});
   const [selectedHabits, setSelectedHabits] = useState<number[]>([]);
   const [customGoal, setCustomGoal] = useState({ title: '', target: '', unit: '' });
-  const [customHabit, setCustomHabit] = useState({ title: '', isNegative: false });
+  const [customHabit, setCustomHabit] = useState<{ title: string; category: Habit['category']; isNegative: boolean }>({ title: '', category: 'Custom', isNegative: false });
   const [customGoals, setCustomGoals] = useState<{ title: string; target: number; unit: string }[]>([]);
-  const [customHabits, setCustomHabits] = useState<{ title: string; isNegative: boolean }[]>([]);
+  const [customHabits, setCustomHabits] = useState<{ title: string; category: Habit['category']; isNegative: boolean }[]>([]);
 
   // Friend invite state
   const [friendQuery, setFriendQuery] = useState('');
@@ -101,7 +101,7 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
   const addCustomHabit = () => {
     if (!customHabit.title) return;
     setCustomHabits(prev => [...prev, { ...customHabit }]);
-    setCustomHabit({ title: '', isNegative: false });
+    setCustomHabit({ title: '', category: 'Custom', isNegative: false });
   };
 
   const handleFinish = () => {
@@ -143,7 +143,7 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
       ...customHabits.map((h) => ({
         id: crypto.randomUUID(),
         title: h.title,
-        category: 'Custom' as const,
+        category: h.category,
         isNegative: h.isNegative,
         history: {},
       })),
@@ -260,9 +260,20 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
             {/* Custom habit */}
             <div className="border border-border rounded-xl p-4 mb-6">
               <h4 className="text-sm font-bold text-textMain mb-2">Add Custom Habit</h4>
-              <div className="flex gap-2 items-center">
+              <div className="flex gap-2 items-center flex-wrap sm:flex-nowrap">
                 <input type="text" placeholder="Habit name" value={customHabit.title} onChange={e => setCustomHabit({ ...customHabit, title: e.target.value })}
                   className="flex-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-textMain focus:outline-none focus:border-primary" />
+                <select
+                  value={customHabit.category}
+                  onChange={e => setCustomHabit({ ...customHabit, category: e.target.value as Habit['category'] })}
+                  className="bg-background border border-border rounded-lg px-3 py-2 text-sm text-textMain focus:outline-none focus:border-primary"
+                >
+                  <option value="Custom">Custom</option>
+                  <option value="Health">Health</option>
+                  <option value="Fitness">Fitness</option>
+                  <option value="Work">Work</option>
+                  <option value="Mindfulness">Mindfulness</option>
+                </select>
                 <label className="flex items-center gap-1 text-xs text-textMuted cursor-pointer whitespace-nowrap">
                   <input type="checkbox" checked={customHabit.isNegative} onChange={e => setCustomHabit({ ...customHabit, isNegative: e.target.checked })}
                     className="accent-danger" />
@@ -275,7 +286,7 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
                 <div className="mt-3 space-y-1">
                   {customHabits.map((h, i) => (
                     <div key={i} className="flex items-center justify-between bg-surfaceHighlight rounded px-3 py-2 text-sm">
-                      <span className="text-textMain">{h.title} {h.isNegative ? '(avoid)' : ''}</span>
+                      <span className="text-textMain">{h.title} <span className="text-textMuted text-xs">[{h.category}]</span> {h.isNegative ? '(avoid)' : ''}</span>
                       <button onClick={() => setCustomHabits(prev => prev.filter((_, j) => j !== i))} className="text-textMuted hover:text-danger">✕</button>
                     </div>
                   ))}

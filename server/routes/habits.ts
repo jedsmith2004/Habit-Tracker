@@ -78,17 +78,40 @@ router.delete('/:id', requireAuth, async (req: AuthRequest, res) => {
  */
 router.put('/:id', requireAuth, async (req: AuthRequest, res) => {
   try {
-    const { title } = req.body;
+    const { title, category } = req.body;
     const habitId = req.params.id;
+
+    const [current] = await sql`
+      SELECT title, category FROM habits
+      WHERE id = ${habitId} AND user_id = ${req.uid!}
+      LIMIT 1
+    `;
+
+    if (!current) return res.status(404).json({ error: 'Habit not found' });
+
+    const nextTitle = title ?? current.title;
+    const nextCategory = category ?? current.category;
+
     const [habit] = await sql`
-      UPDATE habits SET title = ${title}
+      UPDATE habits
+      SET title = ${nextTitle}, category = ${nextCategory}
       WHERE id = ${habitId} AND user_id = ${req.uid!}
       RETURNING *
     `;
     if (!habit) return res.status(404).json({ error: 'Habit not found' });
+
+    let description = `Updated habit "${habit.title}"`;
+    if (title !== undefined && category !== undefined) {
+      description = `Updated habit "${habit.title}" and category to ${habit.category}`;
+    } else if (title !== undefined) {
+      description = `Renamed habit to "${habit.title}"`;
+    } else if (category !== undefined) {
+      description = `Changed "${habit.title}" category to ${habit.category}`;
+    }
+
     await sql`
       INSERT INTO activity_logs (user_id, type, description)
-      VALUES (${req.uid!}, 'habit', ${'Renamed habit to "' + title + '"'})
+      VALUES (${req.uid!}, 'habit', ${description})
     `;
     res.json({ success: true });
   } catch (err) {

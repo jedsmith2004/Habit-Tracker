@@ -8,14 +8,15 @@ interface AccountProps {
   habits: Habit[];
   goals: NumericGoal[];
   onUpdateUser: (u: User) => void;
+  onDeleteAccount?: () => Promise<void> | void;
   onDeleteHabit?: (habitId: string) => void;
   onDeleteGoal?: (goalId: string) => void;
-  onEditHabit?: (habitId: string, updates: { title?: string }) => void;
+  onEditHabit?: (habitId: string, updates: { title?: string; category?: Habit['category'] }) => void;
   onEditGoal?: (goalId: string, updates: { title?: string; target?: number; deadline?: string }) => void;
   onClose: () => void;
 }
 
-const Account: React.FC<AccountProps> = ({ user, habits, goals, onUpdateUser, onDeleteHabit, onDeleteGoal, onEditHabit, onEditGoal, onClose }) => {
+const Account: React.FC<AccountProps> = ({ user, habits, goals, onUpdateUser, onDeleteAccount, onDeleteHabit, onDeleteGoal, onEditHabit, onEditGoal, onClose }) => {
   const [prompt, setPrompt] = useState('');
   const [generating, setGenerating] = useState(false);
   const [tempAvatar, setTempAvatar] = useState<string | null>(null);
@@ -28,6 +29,8 @@ const Account: React.FC<AccountProps> = ({ user, habits, goals, onUpdateUser, on
   const [editGoalTitle, setEditGoalTitle] = useState('');
   const [editGoalTarget, setEditGoalTarget] = useState('');
   const [editGoalDeadline, setEditGoalDeadline] = useState('');
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deletingAccount, setDeletingAccount] = useState(false);
 
   const handleGenerateAvatar = async () => {
     if (!prompt) return;
@@ -54,6 +57,17 @@ const Account: React.FC<AccountProps> = ({ user, habits, goals, onUpdateUser, on
       onUpdateUser({ ...user, name: nameInput.trim() });
     }
     setEditingName(false);
+  };
+
+  const handleDeleteAccount = async () => {
+    if (!onDeleteAccount) return;
+    setDeletingAccount(true);
+    try {
+      await onDeleteAccount();
+    } finally {
+      setDeletingAccount(false);
+      setShowDeleteConfirm(false);
+    }
   };
 
   // Habit stats
@@ -142,6 +156,42 @@ const Account: React.FC<AccountProps> = ({ user, habits, goals, onUpdateUser, on
               </button>
             </div>
           )}
+
+          {onDeleteAccount && (
+            <div className="pt-4 border-t border-border">
+              <button
+                onClick={() => setShowDeleteConfirm(true)}
+                className="px-4 py-2 rounded-lg bg-danger/10 text-danger border border-danger/30 hover:bg-danger/20 text-sm font-medium"
+              >
+                Delete Account
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={() => !deletingAccount && setShowDeleteConfirm(false)}>
+          <div className="bg-surface border border-border rounded-xl p-6 w-full max-w-md" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-bold text-textMain mb-2">Delete account?</h3>
+            <p className="text-sm text-textMuted mb-5">This will permanently remove your account, habits, goals, logs, friends, and events. This action cannot be undone.</p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setShowDeleteConfirm(false)}
+                disabled={deletingAccount}
+                className="px-4 py-2 rounded-lg border border-border text-textMuted hover:text-textMain"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteAccount}
+                disabled={deletingAccount}
+                className="px-4 py-2 rounded-lg bg-danger text-white hover:opacity-90 disabled:opacity-60"
+              >
+                {deletingAccount ? 'Deleting...' : 'Yes, delete my account'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

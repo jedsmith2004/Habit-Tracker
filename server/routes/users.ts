@@ -62,4 +62,18 @@ router.patch('/me', requireAuth, async (req: AuthRequest, res) => {
   }
 });
 
+/**
+ * DELETE /api/users/me
+ * Deletes the current user and cascades related records.
+ */
+router.delete('/me', requireAuth, async (req: AuthRequest, res) => {
+  try {
+    await sql`DELETE FROM users WHERE id = ${req.uid!}`;
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Delete account error:', err);
+    res.status(500).json({ error: 'Failed to delete account' });
+  }
+});
+
 export default router;

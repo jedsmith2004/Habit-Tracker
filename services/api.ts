@@ -36,6 +36,11 @@ export const updateUser = (data: { name?: string; avatarUrl?: string }) =>
     body: JSON.stringify(data),
   });
 
+export const deleteAccount = () =>
+  request<{ success: boolean }>('/users/me', {
+    method: 'DELETE',
+  });
+
 // --- Habits ---
 
 export const fetchHabits = () => request<Habit[]>('/habits');
@@ -49,7 +54,7 @@ export const createHabit = (habit: { id: string; title: string; category: string
 export const deleteHabit = (id: string) =>
   request(`/habits/${id}`, { method: 'DELETE' });
 
-export const editHabit = (habitId: string, updates: { title?: string }) =>
+export const editHabit = (habitId: string, updates: { title?: string; category?: Habit['category'] }) =>
   request(`/habits/${habitId}`, {
     method: 'PUT',
     body: JSON.stringify(updates),

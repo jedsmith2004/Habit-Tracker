@@ -35,21 +35,29 @@ const Insights: React.FC<InsightsProps> = ({ habits, goals }) => {
       // Show single point at current value if no history entries
       if (goal.current > 0) {
         const now = new Date();
-        return [{ name: now.toLocaleString('default', { month: 'short' }), value: goal.current }];
+        return [{
+          date: now.toISOString().split('T')[0],
+          name: now.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+          value: goal.current,
+        }];
       }
       return [];
     }
-    // Aggregate history by month (cumulative)
-    const byMonth: Record<string, number> = {};
+    // Aggregate history by day (cumulative)
+    const byDay: Record<string, number> = {};
     goal.history.forEach(e => {
-      const m = e.date.slice(0, 7); // YYYY-MM
-      byMonth[m] = (byMonth[m] || 0) + e.amount;
+      const d = e.date.slice(0, 10); // YYYY-MM-DD
+      byDay[d] = (byDay[d] || 0) + e.amount;
     });
     let cumulative = 0;
-    return Object.entries(byMonth).sort().map(([month, amount]) => {
+    return Object.entries(byDay).sort().map(([day, amount]) => {
       cumulative += amount;
-      const d = new Date(month + '-01');
-      return { name: d.toLocaleString('default', { month: 'short' }), value: parseFloat(cumulative.toFixed(2)) };
+      const d = new Date(day + 'T00:00:00');
+      return {
+        date: day,
+        name: d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+        value: parseFloat(cumulative.toFixed(2)),
+      };
     });
   };
 
@@ -200,13 +208,24 @@ const Insights: React.FC<InsightsProps> = ({ habits, goals }) => {
                         </linearGradient>
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" stroke="#30363d" vertical={false} />
-                      <XAxis dataKey="name" stroke="#8b949e" tick={{ fontSize: 12 }} tickLine={false} axisLine={false} />
+                      <XAxis
+                        dataKey="name"
+                        stroke="#8b949e"
+                        tick={{ fontSize: 12 }}
+                        tickLine={false}
+                        axisLine={false}
+                        interval="preserveStartEnd"
+                        minTickGap={24}
+                      />
                       <YAxis stroke="#8b949e" tick={{ fontSize: 10 }} tickLine={false} axisLine={false}
                         domain={[0, goal.target]} tickFormatter={(v: number) => v >= 1000 ? `${(v / 1000).toFixed(1)}k` : `${v}`} />
                       <Tooltip
                         contentStyle={{ backgroundColor: '#161b22', borderColor: '#30363d', borderRadius: '8px' }}
                         itemStyle={{ color: '#f0f6fc' }}
-                        formatter={(value: number) => [value.toLocaleString(undefined, { maximumFractionDigits: 2 }) + ' ' + goal.unit, goal.title]}
+                        formatter={(value: number, _name: string, item: any) => [
+                          `${value.toLocaleString(undefined, { maximumFractionDigits: 2 })} ${goal.unit}`,
+                          item?.payload?.name || goal.title,
+                        ]}
                       />
                       <Line type="monotone" dataKey="value" stroke="#2ea043" strokeWidth={3} dot={false}
                         activeDot={{ r: 6, fill: '#2ea043', stroke: '#fff', strokeWidth: 2 }} />
