@@ -127,6 +127,13 @@ export async function initDB() {
     );
   `;
 
+  await sql`
+    CREATE TABLE IF NOT EXISTS schema_migrations (
+      name TEXT PRIMARY KEY,
+      run_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `;
+
   console.log('✅ Database schema initialized');
 
   // --- Migrations for existing tables ---
@@ -138,6 +145,29 @@ export async function initDB() {
     await sql`ALTER TABLE friends ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'accepted'`;
     // Backfill: mark old habit/goal logs as reversible
     await sql`UPDATE activity_logs SET reversible = TRUE WHERE type IN ('habit', 'goal') AND reversible = FALSE AND reversed = FALSE AND (description LIKE 'Completed %' OR description LIKE 'Added %' OR description LIKE 'Logged %')`;
+
+    // Backfill onboarding-era deadlines: set all existing goals to 1 year from account creation
+    const deadlineMigrationName = '2026-02-goal-deadline-from-user-created-at';
+    const [deadlineMigrationRan] = await sql`
+      SELECT 1 FROM schema_migrations WHERE name = ${deadlineMigrationName} LIMIT 1
+    `;
+
+    if (!deadlineMigrationRan) {
+      await sql`
+        UPDATE goals g
+        SET deadline = ((COALESCE(u.created_at, NOW())::date + INTERVAL '1 year')::date)
+        FROM users u
+        WHERE g.user_id = u.id
+      `;
+
+      await sql`
+        INSERT INTO schema_migrations (name)
+        VALUES (${deadlineMigrationName})
+      `;
+
+      console.log('✅ Goal deadline migration applied (deadline = account created date + 1 year)');
+    }
+
     console.log('✅ Database migrations applied');
   } catch (err) {
     // Columns likely already exist, safe to ignore

@@ -279,11 +279,11 @@ const Dashboard: React.FC<DashboardProps> = ({ user, habits, goals, onToggleHabi
               )}
             </button>
             {showNotifications && (
-              <div className="absolute right-0 top-14 w-80 bg-surface border border-border rounded-xl shadow-2xl z-50 overflow-hidden">
+              <div className="fixed left-3 right-3 top-20 w-auto max-h-[70vh] bg-surface border border-border rounded-xl shadow-2xl z-50 overflow-hidden sm:absolute sm:left-auto sm:right-0 sm:top-14 sm:w-80 sm:max-h-none">
                 <div className="p-3 border-b border-border">
                   <h4 className="font-bold text-textMain text-sm">Notifications</h4>
                 </div>
-                <div className="max-h-64 overflow-y-auto">
+                <div className="max-h-[calc(70vh-3rem)] overflow-y-auto sm:max-h-64">
                   {notifications.length === 0 ? (
                     <p className="text-textMuted text-sm p-4 text-center">All caught up! 🎉</p>
                   ) : notifications.map(n => (

@@ -105,6 +105,10 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
   };
 
   const handleFinish = () => {
+    const oneYearFromNow = new Date();
+    oneYearFromNow.setFullYear(oneYearFromNow.getFullYear() + 1);
+    const deadline = `${oneYearFromNow.getFullYear()}-${String(oneYearFromNow.getMonth() + 1).padStart(2, '0')}-${String(oneYearFromNow.getDate()).padStart(2, '0')}`;
+
     const goals: NumericGoal[] = [
       ...selectedGoals.map((idx) => ({
         id: crypto.randomUUID(),
@@ -113,7 +117,7 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
         target: goalTargets[idx] || SUGGESTED_GOALS[idx].target,
         current: 0,
         unit: SUGGESTED_GOALS[idx].unit,
-        deadline: new Date(new Date().getFullYear(), 11, 31).toISOString().split('T')[0],
+        deadline,
         history: [],
       })),
       ...customGoals.map((g) => ({
@@ -123,7 +127,7 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
         target: g.target,
         current: 0,
         unit: g.unit,
-        deadline: new Date(new Date().getFullYear(), 11, 31).toISOString().split('T')[0],
+        deadline,
         history: [],
       })),
     ];
