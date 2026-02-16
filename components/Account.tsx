@@ -25,6 +25,7 @@ const Account: React.FC<AccountProps> = ({ user, habits, goals, onUpdateUser, on
   const [tab, setTab] = useState<'profile' | 'habits' | 'goals'>('profile');
   const [editingHabitId, setEditingHabitId] = useState<string | null>(null);
   const [editHabitTitle, setEditHabitTitle] = useState('');
+  const [editHabitCategory, setEditHabitCategory] = useState<Habit['category']>('Custom');
   const [editingGoalId, setEditingGoalId] = useState<string | null>(null);
   const [editGoalTitle, setEditGoalTitle] = useState('');
   const [editGoalTarget, setEditGoalTarget] = useState('');
@@ -204,11 +205,22 @@ const Account: React.FC<AccountProps> = ({ user, habits, goals, onUpdateUser, on
             <div key={h.id} className="bg-surface border border-border rounded-lg p-4 flex items-center justify-between group">
               <div className="flex-1 min-w-0">
                 {editingHabitId === h.id ? (
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <input type="text" value={editHabitTitle} onChange={e => setEditHabitTitle(e.target.value)}
                       className="flex-1 bg-background border border-border rounded-lg px-3 py-1.5 text-textMain text-sm focus:outline-none focus:border-primary" />
+                    <select
+                      value={editHabitCategory}
+                      onChange={e => setEditHabitCategory(e.target.value as Habit['category'])}
+                      className="bg-background border border-border rounded-lg px-3 py-1.5 text-textMain text-sm focus:outline-none focus:border-primary"
+                    >
+                      <option value="Health">Health</option>
+                      <option value="Fitness">Fitness</option>
+                      <option value="Work">Work</option>
+                      <option value="Mindfulness">Mindfulness</option>
+                      <option value="Custom">Custom</option>
+                    </select>
                     <button onClick={() => {
-                      if (editHabitTitle.trim()) onEditHabit?.(h.id, { title: editHabitTitle.trim() });
+                      if (editHabitTitle.trim()) onEditHabit?.(h.id, { title: editHabitTitle.trim(), category: editHabitCategory });
                       setEditingHabitId(null);
                     }} className="p-1.5 text-primary hover:text-primaryHover"><Check size={16} /></button>
                     <button onClick={() => setEditingHabitId(null)} className="p-1.5 text-textMuted hover:text-textMain"><X size={16} /></button>
@@ -218,7 +230,7 @@ const Account: React.FC<AccountProps> = ({ user, habits, goals, onUpdateUser, on
                     <div className="flex items-center gap-2">
                       <h4 className="font-semibold text-textMain">{h.title}</h4>
                       {onEditHabit && (
-                        <button onClick={() => { setEditingHabitId(h.id); setEditHabitTitle(h.title); }}
+                        <button onClick={() => { setEditingHabitId(h.id); setEditHabitTitle(h.title); setEditHabitCategory(h.category); }}
                           className="p-1 text-textMuted hover:text-textMain opacity-0 group-hover:opacity-100 transition-all"><Edit2 size={14} /></button>
                       )}
                     </div>

@@ -165,6 +165,8 @@ const Insights: React.FC<InsightsProps> = ({ habits, goals }) => {
             if (idx !== goalScrollIdx) return null;
             const progress = Math.min(100, Math.round((goal.current / goal.target) * 100));
             const chartData = buildGoalChartData(goal);
+            const maxDayValue = chartData.reduce((max, point) => Math.max(max, Number(point.value) || 0), 0);
+            const yAxisMax = Math.max(1, Math.ceil(maxDayValue * 1.1));
             const circumference = 2 * Math.PI * 54; // r=54
 
             return (
@@ -218,7 +220,7 @@ const Insights: React.FC<InsightsProps> = ({ habits, goals }) => {
                         minTickGap={24}
                       />
                       <YAxis stroke="#8b949e" tick={{ fontSize: 10 }} tickLine={false} axisLine={false}
-                        domain={[0, goal.target]} tickFormatter={(v: number) => v >= 1000 ? `${(v / 1000).toFixed(1)}k` : `${v}`} />
+                        domain={[0, yAxisMax]} tickFormatter={(v: number) => v >= 1000 ? `${(v / 1000).toFixed(1)}k` : `${v}`} />
                       <Tooltip
                         contentStyle={{ backgroundColor: '#161b22', borderColor: '#30363d', borderRadius: '8px' }}
                         itemStyle={{ color: '#f0f6fc' }}

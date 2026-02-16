@@ -1,11 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { Moon, Bell, Shield } from 'lucide-react';
-import { Habit } from '../types';
-
-interface SettingsProps {
-  habits: Habit[];
-  onUpdateHabitCategory?: (habitId: string, category: Habit['category']) => Promise<void> | void;
-}
 
 interface SettingsState {
   darkMode: boolean;
@@ -48,9 +42,7 @@ const DARK_THEME: Record<string, string> = {
   '--color-danger': '#da3633',
 };
 
-const HABIT_CATEGORIES: Habit['category'][] = ['Health', 'Work', 'Fitness', 'Mindfulness', 'Custom'];
-
-const Settings: React.FC<SettingsProps> = ({ habits, onUpdateHabitCategory }) => {
+const Settings: React.FC = () => {
   const [settings, setSettings] = useState<SettingsState>(() => {
     const saved = localStorage.getItem('habitflow-settings');
     if (saved) return JSON.parse(saved);
@@ -87,18 +79,6 @@ const Settings: React.FC<SettingsProps> = ({ habits, onUpdateHabitCategory }) =>
 
   const toggle = (key: keyof SettingsState) => {
     setSettings(prev => ({ ...prev, [key]: !prev[key] }));
-  };
-
-  const [savingHabitId, setSavingHabitId] = useState<string | null>(null);
-
-  const handleCategoryChange = async (habitId: string, category: Habit['category']) => {
-    if (!onUpdateHabitCategory) return;
-    setSavingHabitId(habitId);
-    try {
-      await onUpdateHabitCategory(habitId, category);
-    } finally {
-      setSavingHabitId(null);
-    }
   };
 
   return (
@@ -188,36 +168,6 @@ const Settings: React.FC<SettingsProps> = ({ habits, onUpdateHabitCategory }) =>
           </div>
         </section>
 
-        {/* Habit Categories */}
-        <section className="bg-surface border border-border rounded-xl overflow-hidden">
-          <div className="p-4 border-b border-border bg-surfaceHighlight/30">
-            <h2 className="font-semibold text-textMain">Habit Categories</h2>
-          </div>
-          <div className="p-4 space-y-3">
-            {habits.length === 0 ? (
-              <p className="text-sm text-textMuted">No habits yet. Add a habit first to manage categories.</p>
-            ) : (
-              habits.map(habit => (
-                <div key={habit.id} className="flex items-center justify-between gap-3 flex-wrap sm:flex-nowrap">
-                  <div className="min-w-0">
-                    <p className="text-textMain text-sm font-medium truncate">{habit.title}</p>
-                    <p className="text-xs text-textMuted">Current: {habit.category}</p>
-                  </div>
-                  <select
-                    value={habit.category}
-                    onChange={(e) => handleCategoryChange(habit.id, e.target.value as Habit['category'])}
-                    disabled={savingHabitId === habit.id}
-                    className="bg-background border border-border rounded-lg px-3 py-2 text-sm text-textMain focus:outline-none focus:border-primary disabled:opacity-60"
-                  >
-                    {HABIT_CATEGORIES.map(category => (
-                      <option key={category} value={category}>{category}</option>
-                    ))}
-                  </select>
-                </div>
-              ))
-            )}
-          </div>
-        </section>
       </div>
     </div>
   );

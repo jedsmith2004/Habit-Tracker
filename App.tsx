@@ -645,12 +645,7 @@ const App: React.FC = () => {
           onEditLog={handleEditLog}
         />
       )}
-      {activeTab === 'settings' && (
-        <Settings
-          habits={habits}
-          onUpdateHabitCategory={(habitId, category) => handleEditHabit(habitId, { category })}
-        />
-      )}
+      {activeTab === 'settings' && <Settings />}
       {activeTab === 'account' && (
         <Account
           user={user}
