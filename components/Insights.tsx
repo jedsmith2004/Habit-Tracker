@@ -65,16 +65,37 @@ const Insights: React.FC<InsightsProps> = ({ habits, goals }) => {
   const buildConsistencyData = () => {
     const data: { date: string; count: number }[] = [];
     const now = new Date();
+
+    // Pre-compute goal activity by date (count goals touched that day)
+    const goalActivityByDate: Record<string, number> = {};
+    goals.forEach(g => {
+      const seenForGoal = new Set<string>();
+      (g.history || []).forEach(entry => {
+        const ds = entry.date.slice(0, 10);
+        // count each goal once per day for consistency intensity
+        if (!seenForGoal.has(ds)) {
+          seenForGoal.add(ds);
+          goalActivityByDate[ds] = (goalActivityByDate[ds] || 0) + 1;
+        }
+      });
+    });
+
     // Go back 52*7 = 364 days
     for (let i = 363; i >= 0; i--) {
       const d = new Date(now);
       d.setDate(d.getDate() - i);
       const dateStr = d.toISOString().split('T')[0];
-      // Count how many habits were completed on this date
+      // Count how many habits were logged on this date
+      // (for negative habits, "good" days are often stored as FAILED)
       let count = 0;
       habits.forEach(h => {
-        if (h.history[dateStr] === HabitStatus.COMPLETED) count++;
+        const status = h.history[dateStr];
+        if (status && status !== HabitStatus.PENDING) count++;
       });
+
+      // Add goals logged on this day
+      count += goalActivityByDate[dateStr] || 0;
+
       data.push({ date: dateStr, count });
     }
     return data;
