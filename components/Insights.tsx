@@ -61,7 +61,7 @@ const Insights: React.FC<InsightsProps> = ({ habits, goals }) => {
     });
   };
 
-  // Build GitHub-style 52x7 consistency map from real habit data
+  // Build GitHub-style consistency map from real habit + goal data
   const buildConsistencyData = () => {
     const data: { date: string; count: number }[] = [];
     const now = new Date();
@@ -80,7 +80,7 @@ const Insights: React.FC<InsightsProps> = ({ habits, goals }) => {
       });
     });
 
-    // Go back 52*7 = 364 days
+    // Go back one full year window (52*7 = 364 days)
     for (let i = 363; i >= 0; i--) {
       const d = new Date(now);
       d.setDate(d.getDate() - i);
@@ -102,14 +102,17 @@ const Insights: React.FC<InsightsProps> = ({ habits, goals }) => {
   };
 
   const consistencyData = buildConsistencyData();
-  // Reshape into 7 rows x 52 cols (Sun=0 to Sat=6)
-  const weeks: { date: string; count: number }[][] = [];
-  for (let w = 0; w < 52; w++) {
-    weeks.push([]);
-  }
-  // Pad start so first entry aligns to correct day of week
+  // Reshape into 7 rows x N cols (Sun=0 to Sat=6)
+  // NOTE: 364 days + start padding can require 53 columns; using dynamic weeks avoids dropping tail days.
   const firstDate = new Date(consistencyData[0]?.date || new Date());
   const startDayOfWeek = firstDate.getDay(); // 0=Sun
+  const totalWeeks = Math.ceil((startDayOfWeek + consistencyData.length) / 7);
+  const weeks: { date: string; count: number }[][] = [];
+  for (let w = 0; w < totalWeeks; w++) {
+    weeks.push([]);
+  }
+
+  // Pad start so first entry aligns to correct day of week
   let weekIdx = 0;
   for (let pad = 0; pad < startDayOfWeek; pad++) {
     if (!weeks[0]) weeks[0] = [];
@@ -118,17 +121,20 @@ const Insights: React.FC<InsightsProps> = ({ habits, goals }) => {
   consistencyData.forEach((d, i) => {
     const totalSlot = startDayOfWeek + i;
     weekIdx = Math.floor(totalSlot / 7);
-    if (weekIdx < 52) {
+    if (weekIdx < totalWeeks) {
       if (!weeks[weekIdx]) weeks[weekIdx] = [];
       weeks[weekIdx].push(d);
     }
   });
 
+  const maxActionsPerDay = Math.max(1, habits.length + goals.length);
+
   const getColor = (count: number) => {
     if (count < 0) return 'transparent';
     if (count === 0) return '#21262d';
-    if (count === 1) return '#0e4429';
-    if (count <= 3) return '#238636';
+    const intensity = count / maxActionsPerDay;
+    if (intensity <= 0.25) return '#0e4429';
+    if (intensity <= 0.6) return '#238636';
     return '#2ea043';
   };
 
@@ -290,7 +296,7 @@ const Insights: React.FC<InsightsProps> = ({ habits, goals }) => {
                           width: '100%', aspectRatio: '1', maxHeight: '11px',
                           backgroundColor: cell ? getColor(cell.count) : 'transparent',
                         }}
-                        title={cell && cell.count >= 0 ? `${cell.date}: ${cell.count} habits` : ''}
+                        title={cell && cell.count >= 0 ? `${cell.date}: ${cell.count} actions` : ''}
                       />
                     );
                   })}
