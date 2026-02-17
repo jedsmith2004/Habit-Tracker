@@ -31,6 +31,8 @@ const Insights: React.FC<InsightsProps> = ({ habits, goals }) => {
 
   // Build real chart data from goal history — NO mock data
   const buildGoalChartData = (goal: NumericGoal) => {
+    const dailyTargetAmount = goal.target / 365;
+
     if (!goal.history || goal.history.length === 0) {
       // Show single point at current value if no history entries
       if (goal.current > 0) {
@@ -39,6 +41,7 @@ const Insights: React.FC<InsightsProps> = ({ habits, goals }) => {
           date: now.toISOString().split('T')[0],
           name: now.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
           value: goal.current,
+          recommended: dailyTargetAmount,
         }];
       }
       return [];
@@ -49,35 +52,42 @@ const Insights: React.FC<InsightsProps> = ({ habits, goals }) => {
       const d = e.date.slice(0, 10); // YYYY-MM-DD
       byDay[d] = (byDay[d] || 0) + e.amount;
     });
+
+    const sortedDays = Object.keys(byDay).sort();
+    const firstDay = new Date(sortedDays[0] + 'T00:00:00');
+
     let cumulative = 0;
-    return Object.entries(byDay).sort().map(([day, amount]) => {
+    return sortedDays.map((day) => {
+      const amount = byDay[day];
       cumulative += amount;
       const d = new Date(day + 'T00:00:00');
+      const elapsedDays = Math.max(1, Math.floor((d.getTime() - firstDay.getTime()) / (1000 * 60 * 60 * 24)) + 1);
+      const recommended = Math.min(goal.target, dailyTargetAmount * elapsedDays);
+
       return {
         date: day,
         name: d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
         value: parseFloat(cumulative.toFixed(2)),
+        recommended: parseFloat(recommended.toFixed(2)),
       };
     });
   };
 
   // Build GitHub-style consistency map from real habit + goal data
+  // Score per day = completed habits + sum(goal daily completion ratios capped at 1.0)
   const buildConsistencyData = () => {
     const data: { date: string; count: number }[] = [];
     const now = new Date();
 
-    // Pre-compute goal activity by date (count goals touched that day)
-    const goalActivityByDate: Record<string, number> = {};
+    // Pre-compute goal amount logged by date for each goal
+    const goalAmountsByDate: Record<string, Record<string, number>> = {};
     goals.forEach(g => {
-      const seenForGoal = new Set<string>();
+      const byDate: Record<string, number> = {};
       (g.history || []).forEach(entry => {
         const ds = entry.date.slice(0, 10);
-        // count each goal once per day for consistency intensity
-        if (!seenForGoal.has(ds)) {
-          seenForGoal.add(ds);
-          goalActivityByDate[ds] = (goalActivityByDate[ds] || 0) + 1;
-        }
+        byDate[ds] = (byDate[ds] || 0) + entry.amount;
       });
+      goalAmountsByDate[g.id] = byDate;
     });
 
     // Go back one full year window (52*7 = 364 days)
@@ -85,18 +95,24 @@ const Insights: React.FC<InsightsProps> = ({ habits, goals }) => {
       const d = new Date(now);
       d.setDate(d.getDate() - i);
       const dateStr = d.toISOString().split('T')[0];
-      // Count how many habits were logged on this date
-      // (for negative habits, "good" days are often stored as FAILED)
       let count = 0;
+
+      // Habits: only count completed habits
       habits.forEach(h => {
         const status = h.history[dateStr];
-        if (status && status !== HabitStatus.PENDING) count++;
+        if (status === HabitStatus.COMPLETED) count += 1;
       });
 
-      // Add goals logged on this day
-      count += goalActivityByDate[dateStr] || 0;
+      // Goals: count fractional daily completion, capped at 1.0 per goal
+      goals.forEach(g => {
+        const dailyTarget = g.target / 365;
+        if (dailyTarget <= 0) return;
+        const dayAmount = goalAmountsByDate[g.id]?.[dateStr] || 0;
+        const goalScore = Math.min(1, Math.max(0, dayAmount / dailyTarget));
+        count += goalScore;
+      });
 
-      data.push({ date: dateStr, count });
+      data.push({ date: dateStr, count: parseFloat(count.toFixed(3)) });
     }
     return data;
   };
@@ -133,9 +149,9 @@ const Insights: React.FC<InsightsProps> = ({ habits, goals }) => {
     if (count < 0) return 'transparent';
     if (count === 0) return '#21262d';
     const intensity = count / maxActionsPerDay;
-    if (intensity <= 0.25) return '#0e4429';
-    if (intensity <= 0.6) return '#238636';
-    return '#2ea043';
+    if (intensity >= 0.9) return '#2ea043';
+    if (intensity >= 0.5) return '#238636';
+    return '#0e4429';
   };
 
   // Build radar from real habit category data
@@ -192,7 +208,7 @@ const Insights: React.FC<InsightsProps> = ({ habits, goals }) => {
             if (idx !== goalScrollIdx) return null;
             const progress = Math.min(100, Math.round((goal.current / goal.target) * 100));
             const chartData = buildGoalChartData(goal);
-            const maxDayValue = chartData.reduce((max, point) => Math.max(max, Number(point.value) || 0), 0);
+            const maxDayValue = chartData.reduce((max, point) => Math.max(max, Number(point.value) || 0, Number(point.recommended) || 0), 0);
             const yAxisMax = Math.max(1, Math.ceil(maxDayValue * 1.1));
             const circumference = 2 * Math.PI * 54; // r=54
 
@@ -251,10 +267,21 @@ const Insights: React.FC<InsightsProps> = ({ habits, goals }) => {
                       <Tooltip
                         contentStyle={{ backgroundColor: '#161b22', borderColor: '#30363d', borderRadius: '8px' }}
                         itemStyle={{ color: '#f0f6fc' }}
-                        formatter={(value: number, _name: string, item: any) => [
-                          `${value.toLocaleString(undefined, { maximumFractionDigits: 2 })} ${goal.unit}`,
-                          item?.payload?.name || goal.title,
-                        ]}
+                        formatter={(value: number, name: string) => {
+                          if (name === 'recommended') {
+                            return [`${value.toLocaleString(undefined, { maximumFractionDigits: 2 })} ${goal.unit}`, 'Recommended pace'];
+                          }
+                          return [`${value.toLocaleString(undefined, { maximumFractionDigits: 2 })} ${goal.unit}`, 'Actual progress'];
+                        }}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="recommended"
+                        stroke="#8b949e"
+                        strokeWidth={2}
+                        strokeDasharray="6 6"
+                        dot={false}
+                        activeDot={false}
                       />
                       <Line type="monotone" dataKey="value" stroke="#2ea043" strokeWidth={3} dot={false}
                         activeDot={{ r: 6, fill: '#2ea043', stroke: '#fff', strokeWidth: 2 }} />
@@ -296,7 +323,7 @@ const Insights: React.FC<InsightsProps> = ({ habits, goals }) => {
                           width: '100%', aspectRatio: '1', maxHeight: '11px',
                           backgroundColor: cell ? getColor(cell.count) : 'transparent',
                         }}
-                        title={cell && cell.count >= 0 ? `${cell.date}: ${cell.count} actions` : ''}
+                        title={cell && cell.count >= 0 ? `${cell.date}: ${cell.count.toFixed(2)} / ${maxActionsPerDay.toFixed(1)} actions` : ''}
                       />
                     );
                   })}
@@ -307,7 +334,7 @@ const Insights: React.FC<InsightsProps> = ({ habits, goals }) => {
           <div className="flex justify-between items-center text-[10px] text-textMuted mt-3 uppercase tracking-wider">
             <span>Less</span>
             <div className="flex gap-1 items-center">
-              {[0, 1, 2, 4].map(c => (
+              {[0, maxActionsPerDay * 0.01, maxActionsPerDay * 0.5, maxActionsPerDay * 0.9].map(c => (
                 <div key={c} className="w-3 h-3 rounded-sm" style={{ backgroundColor: getColor(c) }} />
               ))}
             </div>
