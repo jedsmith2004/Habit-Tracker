@@ -145,13 +145,21 @@ const Insights: React.FC<InsightsProps> = ({ habits, goals }) => {
 
   const maxActionsPerDay = Math.max(1, habits.length + goals.length);
 
+  const interpolateColor = (intensity: number) => {
+    // 0.0 => grey (#21262d), 1.0 => full green (#2ea043)
+    const clamped = Math.max(0, Math.min(1, intensity));
+    const start = { r: 0x21, g: 0x26, b: 0x2d };
+    const end = { r: 0x2e, g: 0xa0, b: 0x43 };
+    const r = Math.round(start.r + (end.r - start.r) * clamped);
+    const g = Math.round(start.g + (end.g - start.g) * clamped);
+    const b = Math.round(start.b + (end.b - start.b) * clamped);
+    return `rgb(${r}, ${g}, ${b})`;
+  };
+
   const getColor = (count: number) => {
     if (count < 0) return 'transparent';
-    if (count === 0) return '#21262d';
     const intensity = count / maxActionsPerDay;
-    if (intensity >= 0.9) return '#2ea043';
-    if (intensity >= 0.5) return '#238636';
-    return '#0e4429';
+    return interpolateColor(intensity);
   };
 
   // Build radar from real habit category data
